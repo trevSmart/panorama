@@ -92,29 +92,13 @@
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-family: 'Space Grotesk';
-      font-weight: 600;
-      font-size: 15.5px;
-      letter-spacing: -.01em;
       cursor: pointer
     }
 
-    .brand .glyph {
-      width: 24px;
-      height: 24px;
-      border-radius: 7px;
-      position: relative;
-      background: conic-gradient(from 130deg, var(--accent), var(--ok), var(--watch), var(--accent));
-      box-shadow: 0 2px 8px rgba(106, 91, 232, .3)
-    }
-
-    .brand .glyph::after {
-      content: "";
-      position: absolute;
-      inset: 6px;
-      border-radius: 3px;
-      background: var(--bg-tint)
+    .brand-logo {
+      height: 28px;
+      width: auto;
+      display: block
     }
 
     nav {
@@ -444,6 +428,60 @@
       max-width: 1240px;
       margin: 0 auto;
       padding: 26px 26px 70px
+    }
+
+    .view-ops {
+      max-width: none;
+      margin: 0;
+      padding: 0;
+      height: calc(100vh - 58px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden
+    }
+
+    .view-ops .vhead {
+      flex-shrink: 0;
+      padding: 18px 26px 14px;
+      margin-bottom: 0
+    }
+
+    .ops-layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(380px, 40%) 1fr;
+      min-height: 0;
+      overflow: hidden
+    }
+
+    .ops-room {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border-right: 1px solid var(--line);
+      padding: 16px 20px 24px;
+      background: var(--bg-tint)
+    }
+
+    .ops-data {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 16px 26px 40px
+    }
+
+    .ops-data .qgrid {
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr))
+    }
+
+    .ops-data .grid {
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr))
+    }
+
+    .ops-building.building-stage {
+      margin-top: 0
+    }
+
+    .ops-building .room-canvas svg {
+      max-width: 100%
     }
 
     .vhead {
@@ -1429,6 +1467,38 @@
       color: var(--ink)
     }
 
+    .bldg-compass {
+      display: inline-grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 2px
+    }
+
+    .bldg-compass button {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--faint);
+      transition: .12s var(--ease);
+      display: grid;
+      place-items: center;
+      line-height: 1
+    }
+
+    .bldg-compass button:hover {
+      background: var(--surface-2);
+      color: var(--ink)
+    }
+
+    .bldg-compass button.on {
+      background: var(--accent-soft);
+      color: var(--accent)
+    }
+
     .floor-lbl {
       font-family: 'Space Grotesk';
       font-size: 11px;
@@ -1463,6 +1533,18 @@
       letter-spacing: .02em
     }
 
+    @media (max-width:1100px) {
+      .ops-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(280px, 42vh) 1fr
+      }
+
+      .ops-room {
+        border-right: none;
+        border-bottom: 1px solid var(--line)
+      }
+    }
+
     @media (max-width:880px) {
       .pillars {
         grid-template-columns: repeat(2, 1fr)
@@ -1494,7 +1576,7 @@
 <body>
 
   <header class="topbar">
-    <div class="brand" onclick="go('overview')"><span class="glyph"></span>Panorama</div>
+    <div class="brand" onclick="go('overview')"><img src="assets/logo/panorama-logo.png" alt="Panorama" class="brand-logo"></div>
     <nav id="nav">
       <button data-view="overview" class="on">Vista general</button>
       <button data-view="detail">Operació</button>
@@ -1659,19 +1741,49 @@
     function roomStats() { let occ = 0, hot = 0; FLOORS.forEach(f => f.assigned.forEach(s => { const a = s.agent; if (a && a.status !== 'offline') { occ++; const L = a.max ? a.used / a.max : 0; if (L >= .8) hot++; } })); return { occ, hot }; }
     function statsHTML(s) { return `<b class="mono">${s.occ}</b> ocupats · <b class="mono" style="color:${s.hot ? 'var(--alert)' : 'var(--ink)'}">${s.hot}</b> punts calents`; }
     function legendHTML() { return `<div class="lt">Equips</div>${Object.entries(TEAM_COLOR).map(([t, c]) => `<div class="li"><i style="width:11px;height:11px;border-radius:3px;background:${rgbc(c)}"></i>${t}</div>`).join('')}<div class="lt" style="margin-top:13px">Lectura ràpida</div><div class="li"><svg width="22" height="22" style="flex-shrink:0"><polygon points="11,1 19,5.5 11,10 3,5.5" fill="rgba(106,91,232,.7)"/><polygon points="3,5.5 11,10 11,19 3,14.5" fill="rgba(106,91,232,.45)"/><polygon points="11,10 19,5.5 19,14.5 11,19" fill="rgba(106,91,232,.3)"/></svg>Més alt i opac = més càrrega</div><div class="li"><i style="width:11px;height:11px;border-radius:50%;background:var(--alert)"></i>Baliza = demana ajuda</div>`; }
+    function roomStageHTML(compact) {
+      const b = buildBuilding();
+      const s = { occ: b.occupied, hot: b.hot };
+      const cls = compact ? 'building-stage ops-building' : 'building-stage';
+      return {
+        html: `<div class="${cls}">
+        <div class="bldg-head">
+          <span class="bcap">La sala · totes les plantes</span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="bstats">${statsHTML(s)}</span>
+            <div class="bldg-compass">
+              <button class="${buildDir === 1 ? 'on' : ''}" onclick="setBuildDir(1)" title="Vista nord-oest">↖</button>
+              <button class="${buildDir === 0 ? 'on' : ''}" onclick="setBuildDir(0)" title="Vista nord-est">↗</button>
+              <button class="${buildDir === 3 ? 'on' : ''}" onclick="setBuildDir(3)" title="Vista sud-oest">↙</button>
+              <button class="${buildDir === 2 ? 'on' : ''}" onclick="setBuildDir(2)" title="Vista sud-est">↘</button>
+            </div>
+          </div>
+        </div>
+        <div class="room-canvas">${b.svg}</div>
+        <div class="room-legend">${legendHTML()}</div>
+      </div>`,
+        stats: s
+      };
+    }
+    function updateRoomPanel() {
+      const canvas = document.querySelector('.room-canvas');
+      if (!canvas) return;
+      const b = buildBuilding();
+      canvas.innerHTML = b.svg;
+      const statsEl = document.querySelector('.bldg-head .bstats');
+      if (statsEl) statsEl.innerHTML = statsHTML({ occ: b.occupied, hot: b.hot });
+      attachSeats();
+    }
 
     function renderOverview() {
-      const h = health(); const b = buildBuilding(); const s = { occ: b.occupied, hot: b.hot };
+      const h = health();
+      const room = roomStageHTML(false);
       document.getElementById('app').innerHTML = `
     <div class="ov">
       <div class="hello">${greet()}, Marc.</div>
       <div class="verdict">${verdictHTML(h)}</div>
       <div class="pillars">${pillarsHTML(h)}</div>
-      <div class="building-stage">
-        <div class="bldg-head"><span class="bcap">La sala · totes les plantes</span><span class="bstats">${statsHTML(s)}</span></div>
-        <div class="room-canvas">${b.svg}</div>
-        <div class="room-legend">${legendHTML()}</div>
-      </div>
+      ${room.html}
     </div>`;
       attachSeats();
     }
@@ -1836,24 +1948,31 @@
     }
     function renderDetail() {
       const c = { all: AGENTS.length }; Object.keys(STATUS).forEach(s => c[s] = AGENTS.filter(a => a.status === s).length);
+      const room = roomStageHTML(true);
       document.getElementById('app').innerHTML = `
-    <div class="view">
+    <div class="view view-ops">
       <div class="vhead"><button class="back" onclick="go('overview')">← General</button><h2>Operació</h2></div>
-      <section id="sec-queues">
-        <div class="sec-title">Cues <span class="cnt">${QUEUES.length}</span></div>
-        <div class="qgrid">${queueState.map(queueCard).join('')}</div>
-      </section>
-      <section id="sec-agents">
-        <div class="sec-title">Agents <span class="cnt">${AGENTS.length}</span></div>
-        <div class="toolbar"><div class="chips">
-          <button class="chip ${filter.status === 'all' ? 'on' : ''}" data-st="all">Tots <b class="mono">${c.all}</b></button>
-          <button class="chip ${filter.status === 'online' ? 'on' : ''}" data-st="online"><i style="background:var(--ok)"></i>Online ${c.online}</button>
-          <button class="chip ${filter.status === 'busy' ? 'on' : ''}" data-st="busy"><i style="background:var(--alert)"></i>Ocupat ${c.busy}</button>
-          <button class="chip ${filter.status === 'away' ? 'on' : ''}" data-st="away"><i style="background:var(--watch)"></i>Absent ${c.away}</button>
-        </div></div>
-        <div class="grid" id="agentGrid">${agentGridHTML()}</div>
-      </section>
+      <div class="ops-layout">
+        <aside class="ops-room">${room.html}</aside>
+        <div class="ops-data">
+          <section id="sec-queues">
+            <div class="sec-title">Cues <span class="cnt">${QUEUES.length}</span></div>
+            <div class="qgrid">${queueState.map(queueCard).join('')}</div>
+          </section>
+          <section id="sec-agents">
+            <div class="sec-title">Agents <span class="cnt">${AGENTS.length}</span></div>
+            <div class="toolbar"><div class="chips">
+              <button class="chip ${filter.status === 'all' ? 'on' : ''}" data-st="all">Tots <b class="mono">${c.all}</b></button>
+              <button class="chip ${filter.status === 'online' ? 'on' : ''}" data-st="online"><i style="background:var(--ok)"></i>Online ${c.online}</button>
+              <button class="chip ${filter.status === 'busy' ? 'on' : ''}" data-st="busy"><i style="background:var(--alert)"></i>Ocupat ${c.busy}</button>
+              <button class="chip ${filter.status === 'away' ? 'on' : ''}" data-st="away"><i style="background:var(--watch)"></i>Absent ${c.away}</button>
+            </div></div>
+            <div class="grid" id="agentGrid">${agentGridHTML()}</div>
+          </section>
+        </div>
+      </div>
     </div>`;
+      attachSeats();
       document.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { filter.status = b.dataset.st; updateAgents(); });
       document.querySelectorAll('#agentGrid .card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
     }
@@ -1907,9 +2026,71 @@
     const tint = (c, k) => c.map(v => Math.round(v + (255 - v) * k));
     const rgbc = (c, o = 1) => `rgba(${c[0]},${c[1]},${c[2]},${o})`;
 
-    function buildBuilding() {
+    let buildDir = 0, dirAnimating = false;
+    function setBuildDir(d) {
+      if (d === buildDir || dirAnimating) return;
+      const canvas = document.querySelector('.room-canvas');
+      if (!canvas) { buildDir = d; if (current === 'overview') updateOverview(); else updateRoomPanel(); return; }
+      dirAnimating = true;
+      const compassDeg = [90, 0, 180, 270];
+      let delta = ((compassDeg[d] - compassDeg[buildDir]) + 360) % 360;
+      if (delta > 180) delta -= 360;
+      const outDeg = delta > 0 ? -90 : 90;
+      const inDeg = delta > 0 ? 90 : -90;
+      const DUR = 190;
+      canvas.style.transformOrigin = 'center 40%';
+      canvas.style.transition = `transform ${DUR}ms ease-in, opacity ${DUR}ms ease-in`;
+      canvas.style.transform = `perspective(700px) rotateY(${outDeg}deg) scaleX(0.6)`;
+      canvas.style.opacity = '0.2';
+      setTimeout(() => {
+        buildDir = d;
+        const b = buildBuilding();
+        canvas.innerHTML = b.svg;
+        attachSeats();
+        document.querySelectorAll('.bldg-compass button').forEach((btn, i) => {
+          btn.classList.toggle('on', [1, 0, 3, 2][i] === d);
+        });
+        canvas.style.transition = 'none';
+        canvas.style.transform = `perspective(700px) rotateY(${inDeg}deg) scaleX(0.6)`;
+        canvas.style.opacity = '0.2';
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          canvas.style.transition = `transform ${DUR}ms ease-out, opacity ${DUR}ms ease-out`;
+          canvas.style.transform = 'perspective(700px) rotateY(0deg) scaleX(1)';
+          canvas.style.opacity = '1';
+          setTimeout(() => {
+            canvas.style.transition = '';
+            canvas.style.transform = '';
+            canvas.style.opacity = '';
+            dirAnimating = false;
+          }, DUR);
+        }));
+      }, DUR);
+    }
+
+    function buildBuilding(dir) {
+      if (dir === undefined) dir = buildDir;
       const TW = 34, TH = 17, minH = 16, maxH = 88, THK = 6, GAP = 230;
-      const iso = (c, r) => [(c - r) * TW, (c + r) * TH];
+      let gMaxC = 0, gMaxR = 0;
+      FLOORS.forEach(f => f.cells.forEach(([c, r]) => { if (c > gMaxC) gMaxC = c; if (r > gMaxR) gMaxR = r; }));
+      const getPos =
+        dir === 1 ? (c, r) => [(r - c) * TW, (r + c) * TH] :
+        dir === 2 ? (c, r) => [(gMaxR - r - c) * TW, (gMaxR - r + c) * TH] :
+        dir === 3 ? (c, r) => [(r + c - gMaxC) * TW, (r + gMaxC - c) * TH] :
+                    (c, r) => [(c - r) * TW, (c + r) * TH];
+      const makeRfVis = has =>
+        dir === 1 ? (c, r) => !has(c, r + 1) :
+        dir === 2 ? (c, r) => !has(c, r - 1) :
+        dir === 3 ? (c, r) => !has(c, r + 1) :
+                    (c, r) => !has(c + 1, r);
+      const makeLfVis = has =>
+        dir === 1 ? (c, r) => !has(c + 1, r) :
+        dir === 2 ? (c, r) => !has(c + 1, r) :
+        dir === 3 ? (c, r) => !has(c - 1, r) :
+                    (c, r) => !has(c, r + 1);
+      const sortFn =
+        dir === 2 ? (a, b) => (a.c - a.r) - (b.c - b.r) || (a.c - b.c) :
+        dir === 3 ? (a, b) => (a.r - a.c) - (b.r - b.c) || (a.r - b.r) :
+                    (a, b) => (a.c + a.r) - (b.c + b.r) || (a.c - b.c);
       let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
       const ext = (x, y) => { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; };
       const faces = (x, y, H) => ({ top: `${x},${y - TH - H} ${x + TW},${y - H} ${x},${y + TH - H} ${x - TW},${y - H}`, lf: `${x - TW},${y} ${x},${y + TH} ${x},${y + TH - H} ${x - TW},${y - H}`, rf: `${x},${y + TH} ${x + TW},${y} ${x + TW},${y - H} ${x},${y + TH - H}` });
@@ -1929,18 +2110,19 @@
       let body = '', labels = '', occupied = 0, hot = 0;
       FLOORS.forEach((f, i) => {
         const yOff = -i * GAP; const has = (c, r) => f.cellset.has(c + ',' + r);
+        const rfVis = makeRfVis(has); const lfVis = makeLfVis(has);
         let fGround = '', fShadow = '', fGlow = '', fCubes = '', lvx = 1e9, lvy = 0;
         f.cells.forEach(([c, r]) => {
-          const [x0, y0] = iso(c, r); const y = y0 + yOff;
+          const [x0, y0] = getPos(c, r); const y = y0 + yOff;
           fGround += `<polygon points="${x0},${y - TH} ${x0 + TW},${y} ${x0},${y + TH} ${x0 - TW},${y}" fill="rgba(247,246,243,.4)" stroke="rgba(27,25,36,.09)"/>`;
-          if (!has(c + 1, r)) fGround += `<polygon points="${x0 + TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 + TW},${y + THK}" fill="rgba(27,25,36,.05)"/>`;
-          if (!has(c, r + 1)) fGround += `<polygon points="${x0 - TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 - TW},${y + THK}" fill="rgba(27,25,36,.08)"/>`;
+          if (rfVis(c, r)) fGround += `<polygon points="${x0 + TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 + TW},${y + THK}" fill="rgba(27,25,36,.05)"/>`;
+          if (lfVis(c, r)) fGround += `<polygon points="${x0 - TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 - TW},${y + THK}" fill="rgba(27,25,36,.08)"/>`;
           if (x0 - TW < lvx) { lvx = x0 - TW; lvy = y; }
           ext(x0 - TW, y - TH); ext(x0 + TW, y + TH + THK);
         });
-        const seats = f.assigned.slice().sort((a, b) => ((a.c + a.r) - (b.c + b.r)) || (a.c - b.c));
+        const seats = f.assigned.slice().sort(sortFn);
         seats.forEach(s => {
-          const a = s.agent; const [x0, y0] = iso(s.c, s.r); const y = y0 + yOff;
+          const a = s.agent; const [x0, y0] = getPos(s.c, s.r); const y = y0 + yOff;
           fShadow += `<ellipse cx="${x0}" cy="${y + 2}" rx="${TW * .86}" ry="${TH * .86}" fill="rgba(27,25,36,.05)" filter="url(#bg)"/>`;
           if (!a) { fCubes += `<g class="seat"><polygon points="${x0},${y - TH * .58} ${x0 + TW * .58},${y} ${x0},${y + TH * .58} ${x0 - TW * .58},${y}" fill="none" stroke="rgba(27,25,36,.22)" stroke-dasharray="3 3"/><title>Lloc lliure</title></g>`; return; }
           const T = TEAM_COLOR[teamOf(a)] || [140, 140, 150];
@@ -1983,7 +2165,7 @@
       else if (v === 'detail') renderDetail();
       else renderPlaceholder(v);
       if (anchor && v === 'detail') { const el = document.getElementById('sec-' + anchor); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } }
-      window.scrollTo(0, 0);
+      if (v !== 'detail') window.scrollTo(0, 0);
     }
     document.querySelectorAll('#nav button').forEach(b => b.onclick = () => go(b.dataset.view));
     // quick search jumps to agents
@@ -2006,14 +2188,14 @@
         if (Math.random() < .35) q.backlog = Math.max(0, q.backlog + rnd(-1, 1));
         if (Math.random() < .2) q.online = Math.max(1, q.online + (Math.random() < .5 ? -1 : 1));
       });
-      if (current === 'overview') updateOverview(); else if (current === 'detail') { const qg = document.querySelector('#sec-queues .qgrid'); if (qg) qg.innerHTML = queueState.map(queueCard).join(''); }
+      if (current === 'overview') updateOverview(); else if (current === 'detail') { const qg = document.querySelector('#sec-queues .qgrid'); if (qg) qg.innerHTML = queueState.map(queueCard).join(''); updateRoomPanel(); }
     }
     function maybeFlag() {
       const on = AGENTS.filter(a => a.status === 'online' && !a.flag);
       if (Math.random() < .4 && on.length) {
         const a = pick(on); a.flag = true;
         a.flagReason = pick(['Client irat — demana responsable', 'Dubte sobre devolucions', 'Cas fora del seu skill', 'Aprovació de descompte']);
-        if (current === 'detail') updateAgents(); else if (current === 'overview') updateOverview();
+        if (current === 'detail') { updateAgents(); updateRoomPanel(); } else if (current === 'overview') updateOverview();
       }
     }
 
