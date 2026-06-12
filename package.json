@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "live-server --port=3000 --watch=index.html,assets --open=/",
+    "dev": "live-server --port=3000 --watch=index.html,assets,src --open=/",
     "test": "node --test"
   },
   "keywords": [],

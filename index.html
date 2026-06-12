@@ -101,29 +101,162 @@
       display: block
     }
 
-    nav {
-      display: flex;
-      gap: 1px;
+    /* ── Workspace tab bar ── */
+    .ws-tabs-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 0;
       margin-left: 4px
     }
 
-    nav button {
-      padding: 7px 13px;
+    .ws-tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      padding-bottom: 1px
+    }
+
+    .ws-tabs::-webkit-scrollbar {
+      display: none
+    }
+
+    .ws-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 200px;
+      padding: 6px 10px 6px 12px;
       border-radius: 8px;
       color: var(--dim);
       font-size: 13px;
       font-weight: 500;
-      transition: .16s var(--ease)
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: .16s var(--ease);
+      position: relative;
+      touch-action: none;
+      cursor: grab
     }
 
-    nav button:hover {
+    .ws-tabs.is-reordering .ws-tab {
+      transition: background .16s var(--ease), color .16s var(--ease), opacity .16s var(--ease)
+    }
+
+    .ws-tab.is-dragging {
+      opacity: .55;
+      cursor: grabbing;
+      z-index: 2
+    }
+
+    .ws-tab.drop-before::before,
+    .ws-tab.drop-after::after {
+      content: '';
+      position: absolute;
+      top: 5px;
+      bottom: 5px;
+      width: 2px;
+      border-radius: 2px;
+      background: var(--accent)
+    }
+
+    .ws-tab.drop-before::before {
+      left: -3px
+    }
+
+    .ws-tab.drop-after::after {
+      right: -3px
+    }
+
+    .ws-tab-close {
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      font-size: 14px;
+      line-height: 1;
+      color: var(--faint);
+      flex-shrink: 0;
+      cursor: pointer
+    }
+
+    .ws-tab:hover {
       color: var(--ink);
       background: rgba(27, 25, 36, .04)
     }
 
-    nav button.on {
+    .ws-tab.on {
       color: var(--ink);
       background: var(--accent-soft)
+    }
+
+    .ws-tab-label {
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .ws-tab-close:hover {
+      color: var(--ink);
+      background: rgba(27, 25, 36, .08)
+    }
+
+    .ws-tab-add {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      font-size: 18px;
+      line-height: 1;
+      color: var(--dim);
+      flex-shrink: 0
+    }
+
+    .ws-tab-add:hover,
+    .ws-tab-add[aria-expanded="true"] {
+      color: var(--accent);
+      background: var(--accent-soft)
+    }
+
+    .ws-catalog {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      min-width: 180px;
+      padding: 6px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow-lift);
+      z-index: 50
+    }
+
+    .ws-catalog-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 8px 11px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink)
+    }
+
+    .ws-catalog-item:hover {
+      background: var(--accent-soft);
+      color: var(--accent)
+    }
+
+    .workspace {
+      min-height: calc(100vh - 58px)
+    }
+
+    .ws-stage {
+      min-height: inherit
+    }
+
+    .ws-panel[hidden] {
+      display: none !important
     }
 
     .top-right {
@@ -154,7 +287,7 @@
     }
 
     .qsearch input:focus {
-      width: 240px;
+      width: 260px;
       border-color: rgba(106, 91, 232, .4);
       box-shadow: 0 0 0 3px var(--accent-soft)
     }
@@ -164,7 +297,175 @@
       left: 10px;
       top: 50%;
       transform: translateY(-50%);
-      color: var(--faint)
+      color: var(--faint);
+      pointer-events: none;
+      z-index: 1
+    }
+
+    .qsearch-drop {
+      position: absolute;
+      top: calc(100% + 7px);
+      right: 0;
+      width: 360px;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow-lift);
+      z-index: 100;
+      padding: 6px
+    }
+
+    .qsearch-drop-body {
+      interpolate-size: allow-keywords;
+      max-height: min(428px, calc(100vh - 84px));
+      overflow: hidden
+    }
+
+    .qsearch-drop-body.has-scroll {
+      overflow-y: auto;
+      overscroll-behavior: contain
+    }
+
+    .qsearch-drop.dropdown-panel {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-0.5rem);
+      transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
+      pointer-events: none
+    }
+
+    .qsearch-drop.dropdown-panel.is-open {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      transition: opacity .18s ease, transform .18s ease, visibility 0s linear 0s;
+      pointer-events: auto
+    }
+
+    .qsearch-hint,
+    .qsearch-empty {
+      padding: 14px 12px;
+      font-size: 12.5px;
+      color: var(--faint);
+      text-align: center;
+      line-height: 1.45
+    }
+
+    .qsearch-empty b {
+      color: var(--dim);
+      font-weight: 500
+    }
+
+    .qsearch-group {
+      padding: 4px 0
+    }
+
+    .qsearch-group+.qsearch-group {
+      border-top: 1px solid var(--line);
+      margin-top: 4px;
+      padding-top: 8px
+    }
+
+    .qsearch-group-lbl {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--faint);
+      padding: 4px 10px 6px
+    }
+
+    .qsearch-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-align: left;
+      transition: .12s var(--ease)
+    }
+
+    .qsearch-item:hover,
+    .qsearch-item.on {
+      background: var(--accent-soft)
+    }
+
+    .qsearch-item .si-main {
+      flex: 1;
+      min-width: 0
+    }
+
+    .qsearch-item .si-title {
+      font-family: 'Space Grotesk';
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .qsearch-item .si-meta {
+      font-size: 11.5px;
+      color: var(--faint);
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .qsearch-item .si-av {
+      position: relative;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-family: 'Space Grotesk';
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      flex-shrink: 0;
+      overflow: hidden
+    }
+
+    .qsearch-item .si-av img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover
+    }
+
+    .qsearch-item .si-thumb {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-family: 'Space Grotesk';
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      flex-shrink: 0
+    }
+
+    .qsearch-item .si-badge {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 20px;
+      flex-shrink: 0
+    }
+
+    .qsearch-item .si-kbd {
+      font-family: 'JetBrains Mono';
+      font-size: 10px;
+      color: var(--faint);
+      flex-shrink: 0
     }
 
     .clock {
@@ -1300,7 +1601,8 @@
       width: 100%;
       max-width: 880px;
       height: auto;
-      overflow: visible
+      overflow: visible;
+      transition: opacity .15s var(--ease)
     }
 
     .seat polygon {
@@ -1559,8 +1861,8 @@
         width: 130px
       }
 
-      nav .txt {
-        display: none
+      .ws-tab {
+        max-width: 140px
       }
     }
 
@@ -1569,6 +1871,10 @@
         animation: none !important;
         transition: none !important
       }
+
+      .ws-tab {
+        cursor: default
+      }
     }
   </style>
 </head>
@@ -1576,20 +1882,23 @@
 <body>
 
   <header class="topbar">
-    <div class="brand" onclick="go('overview')"><img src="assets/logo/panorama-logo.png" alt="Panorama" class="brand-logo"></div>
-    <nav id="nav">
-      <button data-view="overview" class="on">Vista general</button>
-      <button data-view="detail">Operació</button>
-      <button data-view="work"><span class="txt">Feina</span></button>
-      <button data-view="skills"><span class="txt">Skills</span></button>
-    </nav>
+    <div class="brand" onclick="Panorama.home()"><img src="assets/logo/panorama-logo.png" alt="Panorama" class="brand-logo"></div>
+    <div class="ws-tabs-wrap">
+      <div class="ws-tabs" id="wsTabs" role="tablist" aria-label="Workspace panels"></div>
+      <div class="ws-catalog" id="wsCatalog" hidden role="menu" aria-label="Open panel"></div>
+    </div>
     <div class="top-right">
-      <div class="qsearch">
+      <div class="qsearch" id="globalSearch">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="7" />
           <path d="m21 21-4-4" />
         </svg>
-        <input id="qsearch" placeholder="Cerca un agent…">
+        <input id="qsearch" placeholder="Search…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="qsearchResults" aria-autocomplete="list">
+        <div class="qsearch-drop dropdown-panel" id="qsearchResults" role="listbox" hidden>
+          <div class="qsearch-drop-body" id="qsearchBody">
+            <div class="qsearch-drop-content" id="qsearchContent"></div>
+          </div>
+        </div>
       </div>
       <span class="clock mono" id="clock">--:--:--</span>
       <div class="me">
@@ -1598,12 +1907,15 @@
     </div>
   </header>
 
-  <div id="app"></div>
+  <div class="workspace" id="workspace">
+    <div class="ws-stage" id="wsStage"></div>
+  </div>
 
   <div class="scrim" id="scrim"></div>
   <aside class="drawer" id="drawer"></aside>
   <div class="room-tip" id="roomTip"></div>
 
+  <script src="src/workspace-shell.js"></script>
   <script>
     /* ───────── Data ───────── */
     const QUEUES = [
@@ -1612,6 +1924,15 @@
       { id: 've', name: 'Vendes', color: '#15A06A' },
       { id: 'st', name: 'Suport Tècnic', color: '#D9981F' },
       { id: 're', name: 'Retenció', color: '#A98AFF' },
+    ];
+    const SKILLS = [
+      { id: 'ca', name: 'Català', agents: 14 },
+      { id: 'es', name: 'Castellà', agents: 18 },
+      { id: 'en', name: 'Anglès', agents: 9 },
+      { id: 'fr', name: 'Francès', agents: 5 },
+      { id: 'tec', name: 'Suport tècnic L2', agents: 6 },
+      { id: 'ven', name: 'Vendes outbound', agents: 4 },
+      { id: 'ret', name: 'Retenció premium', agents: 3 },
     ];
     const CH = { veu: '☎', chat: '💬', email: '✉', wa: '⌘', cas: '⛬' };
     const CH_LBL = { veu: 'Veu', chat: 'Chat', email: 'Email', wa: 'WhatsApp', cas: 'Cas' };
@@ -1737,7 +2058,7 @@
       else { const al = h.pillars.filter(p => p.state === 'alert'); dot = 'alert'; title = al.length === 1 ? 'Una cosa necessita la teva atenció.' : 'Hi ha coses per atendre.'; sub = 'Mira ' + al.map(p => p.lbl.toLowerCase()).join(' i ') + '. Toca per anar directe al detall.'; }
       return `<span class="vdot ${dot}"></span><div><h1>${title}</h1><div class="vsub">${sub}</div><div class="vmeta"><span class="live"><i></i>en directe</span><span>·</span><span><b class="mono">${h.online}</b> agents online</span><span>·</span><span><b class="mono">${QUEUES.length}</b> cues actives</span><span>·</span><span>actualitzat ara mateix</span></div></div>`;
     }
-    function pillarsHTML(h) { return h.pillars.map(p => `<button class="pillar ${p.state !== 'ok' ? 'attn ' + p.state : ''}" onclick="go('detail','${p.view}')"><span class="arrow">→</span><div class="pl">${p.lbl}</div><div class="pv">${p.val}</div><div class="ps"><i style="background:var(--${p.state})"></i>${p.msg[p.state]}</div></button>`).join(''); }
+    function pillarsHTML(h) { return h.pillars.map(p => `<button class="pillar ${p.state !== 'ok' ? 'attn ' + p.state : ''}" onclick="Panorama.open('operations', { anchor: '${p.view}' })"><span class="arrow">→</span><div class="pl">${p.lbl}</div><div class="pv">${p.val}</div><div class="ps"><i style="background:var(--${p.state})"></i>${p.msg[p.state]}</div></button>`).join(''); }
     function roomStats() { let occ = 0, hot = 0; FLOORS.forEach(f => f.assigned.forEach(s => { const a = s.agent; if (a && a.status !== 'offline') { occ++; const L = a.max ? a.used / a.max : 0; if (L >= .8) hot++; } })); return { occ, hot }; }
     function statsHTML(s) { return `<b class="mono">${s.occ}</b> ocupats · <b class="mono" style="color:${s.hot ? 'var(--alert)' : 'var(--ink)'}">${s.hot}</b> punts calents`; }
     function legendHTML() { return `<div class="lt">Equips</div>${Object.entries(TEAM_COLOR).map(([t, c]) => `<div class="li"><i style="width:11px;height:11px;border-radius:3px;background:${rgbc(c)}"></i>${t}</div>`).join('')}<div class="lt" style="margin-top:13px">Lectura ràpida</div><div class="li"><svg width="22" height="22" style="flex-shrink:0"><polygon points="11,1 19,5.5 11,10 3,5.5" fill="rgba(106,91,232,.7)"/><polygon points="3,5.5 11,10 11,19 3,14.5" fill="rgba(106,91,232,.45)"/><polygon points="11,10 19,5.5 19,14.5 11,19" fill="rgba(106,91,232,.3)"/></svg>Més alt i opac = més càrrega</div><div class="li"><i style="width:11px;height:11px;border-radius:50%;background:var(--alert)"></i>Baliza = demana ajuda</div>`; }
@@ -1766,28 +2087,61 @@
       };
     }
     function updateRoomPanel() {
-      const canvas = document.querySelector('.room-canvas');
+      const root = activePanelEl();
+      const canvas = root?.querySelector('.room-canvas');
       if (!canvas) return;
+      syncTowerDisplayH();
       const b = buildBuilding();
       canvas.innerHTML = b.svg;
-      const statsEl = document.querySelector('.bldg-head .bstats');
+      const statsEl = root.querySelector('.bldg-head .bstats');
       if (statsEl) statsEl.innerHTML = statsHTML({ occ: b.occupied, hot: b.hot });
-      attachSeats();
+      attachSeats(root);
+    }
+    function activeViewType() { return PanoramaWorkspace.activeViewType(); }
+    function isView(type) { return activeViewType() === type; }
+    function activePanelEl() {
+      const p = PanoramaWorkspace.activePanel();
+      return p ? document.querySelector(`[data-panel-id="${p.id}"]`) : null;
+    }
+    function updateOverviewMetrics() {
+      const root = activePanelEl();
+      const h = health();
+      const pillars = root?.querySelector('.pillars');
+      if (pillars) pillars.innerHTML = pillarsHTML(h);
+      const verdict = root?.querySelector('.verdict');
+      if (verdict) verdict.innerHTML = verdictHTML(h);
+    }
+    function runBuildingAnimation(ts) {
+      buildingAnimFrame = requestAnimationFrame(runBuildingAnimation);
+      if (!isView('overview') && !isView('operations')) return;
+      if (!activePanelEl()?.querySelector('.room-canvas')) return;
+      const dt = animLastTs ? Math.min(ts - animLastTs, 50) : 16;
+      animLastTs = ts;
+      if (!stepBuildingAnimation(dt)) { Scene3D.update(dt); return; }
+      updateRoomPanel();
+      Scene3D.update(dt);
+    }
+    function startBuildingAnimation() {
+      if (!buildingAnimFrame) runBuildingAnimation();
     }
 
-    function renderOverview() {
+    function renderOverview(container) {
       const h = health();
       const room = roomStageHTML(false);
-      document.getElementById('app').innerHTML = `
+      container.innerHTML = `
     <div class="ov">
       <div class="hello">${greet()}, Marc.</div>
       <div class="verdict">${verdictHTML(h)}</div>
       <div class="pillars">${pillarsHTML(h)}</div>
       ${room.html}
     </div>`;
-      attachSeats();
+      attachSeats(container);
+      startBuildingAnimation();
     }
-    function updateOverview() { renderOverview(); }
+    function updateOverview() {
+      updateOverviewMetrics();
+      updateRoomPanel();
+    }
 
     /* ───────── 3D scene (Three.js) ───────── */
     const Scene3D = {
@@ -1804,13 +2158,15 @@
         scene.add(new THREE.HemisphereLight(0xffffff, 0xc7cad2, 1.0));
         const dir = new THREE.DirectionalLight(0xffffff, 0.55); dir.position.set(10, 22, 14); scene.add(dir);
         scene.add(new THREE.AmbientLight(0xffffff, 0.22));
-        const CELL = 1.05, SEAT = 0.8, SLAB_T = 0.14, FGAP = 6.0, minH = 0.6, maxH = 5.2, baseH = 0.7, capH = 0.7;
+        const CELL = 1.05, SEAT = 0.8, SLAB_T = 0.14, minH = 0.6, maxH = 5.2, baseH = SLAB_T, capH = SLAB_T;
         let minc = 1e9, maxc = -1e9, minr = 1e9, maxr = -1e9;
         FLOORS.forEach(f => f.cells.forEach(([c, r]) => { minc = Math.min(minc, c); maxc = Math.max(maxc, c); minr = Math.min(minr, r); maxr = Math.max(maxr, r); }));
+        const floorY = computeFloorStack(FLOORS, { minH, maxH, slabT: SLAB_T, beaconPad: 0.5, marginMin: 0.3, marginBase: 0.55 });
         const cx = (minc + maxc) / 2 * CELL, cz = (minr + maxr) / 2 * CELL;
         const tcol = t => { const c = TEAM_COLOR[t] || [140, 140, 150]; return new THREE.Color(c[0] / 255, c[1] / 255, c[2] / 255); };
         const mc = {};
         const opaqueMat = t => mc['o' + t] || (mc['o' + t] = new THREE.MeshStandardMaterial({ color: tcol(t), roughness: .55 }));
+        const capMat = t => mc['c' + t] || (mc['c' + t] = new THREE.MeshStandardMaterial({ color: tcol(t), roughness: .55, transparent: true, opacity: .72 }));
         const shaftMat = t => mc['s' + t] || (mc['s' + t] = new THREE.MeshStandardMaterial({ color: tcol(t), roughness: .4, transparent: true, opacity: .26, depthWrite: false }));
         const idleMat = t => mc['i' + t] || (mc['i' + t] = new THREE.LineBasicMaterial({ color: tcol(t), transparent: true, opacity: .5 }));
         const slabMat = new THREE.MeshStandardMaterial({ color: 0xece9e4, roughness: .9, transparent: true, opacity: .34, depthWrite: false });
@@ -1824,7 +2180,7 @@
         const root = new THREE.Group(); scene.add(root);
         const pickables = [], beacons = [], towerGroups = [], towers = new Map();
         FLOORS.forEach((f, i) => {
-          const fy = i * FGAP;
+          const fy = floorY[i];
           f.cells.forEach(([c, r]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(CELL * 0.94, SLAB_T, CELL * 0.94), slabMat); m.position.set(c * CELL - cx, fy, r * CELL - cz); root.add(m); });
           const topY = fy + SLAB_T / 2;
           f.assigned.forEach(s => {
@@ -1834,11 +2190,14 @@
             if (a.status === 'offline') { Hh = 0.45; tg.add(lineBox(Hh, offMat)); }
             else {
               const L = a.max ? a.used / a.max : 0;
-              if (L < 0.1) { Hh = 0.6; tg.add(lineBox(Hh, idleMat(team))); }
-              else {
+              if (L < 0.1) {
+                Hh = minH;
+                if (Hh <= baseH + capH) tg.add(seg(0, Hh, opaqueMat(team)));
+                else tg.add(seg(0, baseH, opaqueMat(team)), seg(baseH, Hh - capH, shaftMat(team)), seg(Hh - capH, Hh, capMat(team)));
+              } else {
                 Hh = minH + L * (maxH - minH);
                 if (Hh <= baseH + capH) { tg.add(seg(0, Hh, opaqueMat(team))); }
-                else { tg.add(seg(0, baseH, opaqueMat(team)), seg(baseH, Hh - capH, shaftMat(team)), seg(Hh - capH, Hh, opaqueMat(team))); }
+                else { tg.add(seg(0, baseH, opaqueMat(team)), seg(baseH, Hh - capH, shaftMat(team)), seg(Hh - capH, Hh, capMat(team))); }
               }
             }
             const pb = new THREE.Mesh((() => { const g = new THREE.BoxGeometry(SEAT, Hh, SEAT); g.translate(0, Hh / 2, 0); return g; })(), pickMat);
@@ -1846,10 +2205,10 @@
             let bref = null; if (a.flag) { bref = makeBeacon(Hh); tg.add(bref); beacons.push(bref); }
             tg.userData.delay = (s.c + s.r) * 0.05; tg.scale.y = 0.001;
             root.add(tg); towerGroups.push(tg);
-            towers.set(a.id, { group: tg, height: Hh, beacon: bref, agent: a });
+            towers.set(a.id, { group: tg, height: Hh, baseH: Hh, beacon: bref, agent: a });
           });
         });
-        const target = new THREE.Vector3(0, (FLOORS.length - 1) * FGAP / 2 + maxH / 3, 0);
+        const target = new THREE.Vector3(0, (floorY[floorY.length - 1] + maxH) / 2, 0);
         let radius = Math.max(26, (maxc - minc) * CELL * 1.5), theta = 0.7, phi = 0.92;
         const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
         const applyCam = () => { camera.position.set(target.x + radius * Math.sin(phi) * Math.sin(theta), target.y + radius * Math.cos(phi), target.z + radius * Math.sin(phi) * Math.cos(theta)); camera.lookAt(target); };
@@ -1888,19 +2247,28 @@
         this.mounted = true;
         this._ = { renderer, el, onResize, stop: () => cancelAnimationFrame(raf), towers, beacons, makeBeacon };
       },
-      update() {
-        if (!this.mounted) return; const { towers, beacons, makeBeacon } = this._;
+      update(dt) {
+        if (!this.mounted) return;
+        const { towers, beacons, makeBeacon } = this._;
+        const minH = 0.6, maxH = 5.2;
         towers.forEach(t => {
           const a = t.agent;
-          if (a.flag && !t.beacon) { t.beacon = makeBeacon(t.height); t.group.add(t.beacon); beacons.push(t.beacon); }
+          const target = towerTargetH(a, minH, maxH);
+          const cur = towerDisplayH.get(a.id);
+          const next = smoothToward(cur, target, dt);
+          towerDisplayH.set(a.id, next);
+          t.group.scale.y = next / t.baseH;
+          const bh = next;
+          if (a.flag && !t.beacon) { t.beacon = makeBeacon(bh); t.group.add(t.beacon); beacons.push(t.beacon); t.beacon.position.y = bh + 0.5; }
           else if (!a.flag && t.beacon) { t.group.remove(t.beacon); const i = beacons.indexOf(t.beacon); if (i >= 0) beacons.splice(i, 1); t.beacon = null; }
+          else if (t.beacon) t.beacon.position.y = bh + 0.5;
         });
       },
       dispose() { if (!this.mounted) return; const s = this._; try { s.stop(); window.removeEventListener('resize', s.onResize); s.renderer.dispose(); if (s.renderer.domElement && s.renderer.domElement.parentNode) s.renderer.domElement.parentNode.removeChild(s.renderer.domElement); } catch (e) { } this.mounted = false; this._ = null; }
     };
 
     /* ───────── Agents view ───────── */
-    let filter = { status: 'all', q: '' };
+    let filter = { status: 'all' };
     function agentCard(a) {
       const st = STATUS[a.status];
       const [g1, g2] = avGrad(NAMES.findIndex(n => n[0] === a.name));
@@ -1936,22 +2304,22 @@
     function agentGridHTML() {
       let list = AGENTS.slice();
       if (filter.status !== 'all') list = list.filter(a => a.status === filter.status);
-      if (filter.q) list = list.filter(a => a.name.toLowerCase().includes(filter.q.toLowerCase()));
       list.sort((a, b) => (b.flag - a.flag) || (b.used - a.used));
       return list.map(agentCard).join('') || '<p style="color:var(--faint)">Cap agent coincideix.</p>';
     }
     function updateAgents() {
-      const grid = document.getElementById('agentGrid'); if (!grid) return;
+      const root = activePanelEl();
+      const grid = root?.querySelector('#agentGrid'); if (!grid) return;
       grid.innerHTML = agentGridHTML();
       grid.querySelectorAll('.card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
-      document.querySelectorAll('[data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === filter.status));
+      root.querySelectorAll('[data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === filter.status));
     }
-    function renderDetail() {
+    function renderDetail(container) {
       const c = { all: AGENTS.length }; Object.keys(STATUS).forEach(s => c[s] = AGENTS.filter(a => a.status === s).length);
       const room = roomStageHTML(true);
-      document.getElementById('app').innerHTML = `
+      container.innerHTML = `
     <div class="view view-ops">
-      <div class="vhead"><button class="back" onclick="go('overview')">← General</button><h2>Operació</h2></div>
+      <div class="vhead"><button class="back" onclick="Panorama.home()">← Overview</button><h2>Operations</h2></div>
       <div class="ops-layout">
         <aside class="ops-room">${room.html}</aside>
         <div class="ops-data">
@@ -1972,19 +2340,19 @@
         </div>
       </div>
     </div>`;
-      attachSeats();
-      document.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { filter.status = b.dataset.st; updateAgents(); });
-      document.querySelectorAll('#agentGrid .card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
+      attachSeats(container);
+      container.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { filter.status = b.dataset.st; updateAgents(); });
+      container.querySelectorAll('#agentGrid .card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
     }
 
     /* ───────── Queues view ───────── */
     function pColor(p) { return p < .5 ? 'var(--ok)' : p < .8 ? 'var(--watch)' : 'var(--alert)'; }
-    function renderPlaceholder(v) {
+    function renderPlaceholder(container, v) {
       const P = {
-        work: ['Feina en curs', 'Tots els work items que viatgen per les cues cap als agents, amb el temps mitjà de gestió per cua i canal.'],
-        skills: ['Backlog per skills', 'Pendents segons routing per skills: quins skills tenen cua i quins agents qualificats hi ha disponibles.']
+        work: ['Work in progress', 'All work items traveling through queues to agents, with average handling time per queue and channel.'],
+        skills: ['Backlog by skills', 'Pending items by skill routing: which skills have queue depth and which qualified agents are available.']
       };
-      document.getElementById('app').innerHTML = `<div class="view"><div class="vhead"><button class="back" onclick="go('overview')">← General</button><h2>${P[v][0]}</h2></div><div class="placeholder"><h3>Per dissenyar</h3><p>${P[v][1]}</p><p style="margin-top:14px;color:var(--accent)">Pantalla de la pròxima iteració.</p></div></div>`;
+      container.innerHTML = `<div class="view"><div class="vhead"><button class="back" onclick="Panorama.home()">← Overview</button><h2>${P[v][0]}</h2></div><div class="placeholder"><h3>To design</h3><p>${P[v][1]}</p><p style="margin-top:14px;color:var(--accent)">Next iteration screen.</p></div></div>`;
     }
 
     /* ───────── Drawer ───────── */
@@ -2026,11 +2394,106 @@
     const tint = (c, k) => c.map(v => Math.round(v + (255 - v) * k));
     const rgbc = (c, o = 1) => `rgba(${c[0]},${c[1]},${c[2]},${o})`;
 
+    function isoDepthSum(c, r, dir, gMaxC, gMaxR) {
+      if (dir === 1) return c + r;
+      if (dir === 2) return gMaxR - r + c;
+      if (dir === 3) return r + gMaxC - c;
+      return c + r;
+    }
+    function floorSeatLoads(f) {
+      const loads = [];
+      f.assigned.forEach(s => {
+        const a = s.agent;
+        if (!a || a.status === 'offline') return;
+        loads.push(a.max ? a.used / a.max : 0);
+      });
+      return loads;
+    }
+    function towerHeightForLoad(L, minH, maxH) {
+      return L < 0.1 ? minH : minH + L * (maxH - minH);
+    }
+    const TOWER_TAU = 1.05;
+    const towerDisplayH = new Map();
+    let buildingAnimFrame = null;
+    let animLastTs = 0;
+    const fixedFloorLayout = { offsets: null, dir: null };
+
+    function easeAlpha(dt) {
+      return 1 - Math.exp(-dt / (TOWER_TAU * 1000));
+    }
+    function smoothToward(cur, target, dt) {
+      if (cur == null) return target;
+      if (Math.abs(cur - target) < 0.02) return target;
+      return cur + (target - cur) * easeAlpha(dt);
+    }
+
+    function towerTargetH(a, minH, maxH) {
+      if (!a || a.status === 'offline') return minH * 0.6;
+      return towerHeightForLoad(a.max ? a.used / a.max : 0, minH, maxH);
+    }
+    function towerDisplayHeight(a, minH, maxH) {
+      if (!a || a.status === 'offline') return minH * 0.6;
+      const v = towerDisplayH.get(a.id);
+      return v != null ? v : towerTargetH(a, minH, maxH);
+    }
+    function syncTowerDisplayH(minH = 16, maxH = 88) {
+      AGENTS.forEach(a => {
+        if (!towerDisplayH.has(a.id)) towerDisplayH.set(a.id, towerTargetH(a, minH, maxH));
+      });
+    }
+    function stepTowerDisplay(minH = 16, maxH = 88, dt = 16) {
+      let dirty = false;
+      AGENTS.forEach(a => {
+        const target = towerTargetH(a, minH, maxH);
+        const cur = towerDisplayH.get(a.id);
+        const next = smoothToward(cur, target, dt);
+        if (cur == null || next !== cur) { towerDisplayH.set(a.id, next); dirty = true; }
+      });
+      return dirty;
+    }
+    function stepBuildingAnimation(dt) {
+      return stepTowerDisplay(16, 88, dt);
+    }
+    function computeFloorLayout(floors, dir, gMaxC, gMaxR, opts) {
+      const { minH, maxH, TH, beaconPad, marginMin, marginBase, slabT = 0 } = opts;
+      const offsets = [0];
+      const gaps = [];
+      for (let i = 0; i < floors.length - 1; i++) {
+        const lower = floors[i];
+        const upper = floors[i + 1];
+        const seatSums = lower.assigned.map(s => isoDepthSum(s.c, s.r, dir, gMaxC, gMaxR));
+        const cellSums = upper.cells.map(([c, r]) => isoDepthSum(c, r, dir, gMaxC, gMaxR));
+        const minSeat = seatSums.length ? Math.min(...seatSums) : Math.min(...cellSums);
+        const geoDelta = (Math.max(...cellSums) - minSeat) * TH;
+        const gap = geoDelta + TH + maxH + beaconPad + marginMin + slabT;
+        gaps.push(gap);
+        offsets.push(offsets[offsets.length - 1] - gap);
+      }
+      return { offsets, gaps };
+    }
+    function computeFloorStack(floors, opts) {
+      const y = [0];
+      for (let i = 0; i < floors.length - 1; i++) {
+        y.push(y[y.length - 1] + opts.slabT + opts.maxH + opts.beaconPad + opts.marginMin);
+      }
+      return y;
+    }
+    function getFixedFloorOffsets(dir, gMaxC, gMaxR, minH, maxH, TH) {
+      if (fixedFloorLayout.dir === dir && fixedFloorLayout.offsets) return fixedFloorLayout.offsets;
+      const { offsets } = computeFloorLayout(FLOORS, dir, gMaxC, gMaxR, {
+        minH, maxH, TH, beaconPad: 24, marginMin: 14, marginBase: 28
+      });
+      fixedFloorLayout.offsets = offsets;
+      fixedFloorLayout.dir = dir;
+      return offsets;
+    }
+
     let buildDir = 0, dirAnimating = false;
     function setBuildDir(d) {
       if (d === buildDir || dirAnimating) return;
-      const canvas = document.querySelector('.room-canvas');
-      if (!canvas) { buildDir = d; if (current === 'overview') updateOverview(); else updateRoomPanel(); return; }
+      const root = activePanelEl();
+      const canvas = root?.querySelector('.room-canvas');
+      if (!canvas) { buildDir = d; fixedFloorLayout.offsets = null; if (isView('overview')) updateOverview(); else updateRoomPanel(); return; }
       dirAnimating = true;
       const compassDeg = [90, 0, 180, 270];
       let delta = ((compassDeg[d] - compassDeg[buildDir]) + 360) % 360;
@@ -2044,10 +2507,11 @@
       canvas.style.opacity = '0.2';
       setTimeout(() => {
         buildDir = d;
+        fixedFloorLayout.offsets = null;
         const b = buildBuilding();
         canvas.innerHTML = b.svg;
-        attachSeats();
-        document.querySelectorAll('.bldg-compass button').forEach((btn, i) => {
+        attachSeats(root);
+        root.querySelectorAll('.bldg-compass button').forEach((btn, i) => {
           btn.classList.toggle('on', [1, 0, 3, 2][i] === d);
         });
         canvas.style.transition = 'none';
@@ -2069,9 +2533,10 @@
 
     function buildBuilding(dir) {
       if (dir === undefined) dir = buildDir;
-      const TW = 34, TH = 17, minH = 16, maxH = 88, THK = 6, GAP = 230;
+      const TW = 34, TH = 17, minH = 16, maxH = 88, THK = 6;
       let gMaxC = 0, gMaxR = 0;
       FLOORS.forEach(f => f.cells.forEach(([c, r]) => { if (c > gMaxC) gMaxC = c; if (r > gMaxR) gMaxR = r; }));
+      const floorOffsets = getFixedFloorOffsets(dir, gMaxC, gMaxR, minH, maxH, TH);
       const getPos =
         dir === 1 ? (c, r) => [(r - c) * TW, (r + c) * TH] :
         dir === 2 ? (c, r) => [(gMaxR - r - c) * TW, (gMaxR - r + c) * TH] :
@@ -2098,28 +2563,36 @@
       const wire = (x, y, H, stroke, id, vacant, beacon) => { const p = faces(x, y, H); return `<g class="seat" ${id ? `data-id="${id}"` : ''}><polygon points="${p.rf}" fill="none" stroke="${stroke}"/><polygon points="${p.lf}" fill="none" stroke="${stroke}"/><polygon points="${p.top}" fill="rgba(255,255,255,.35)" stroke="${stroke}"/>${vacant ? '<title>Lloc lliure</title>' : ''}${beacon || ''}</g>`; };
       const band = (x, y, h1, h2, oL, oR, T, stroke) => `<polygon points="${x},${y + TH - h1} ${x + TW},${y - h1} ${x + TW},${y - h2} ${x},${y + TH - h2}" fill="${rgbc(shade(T, .72), oR)}"${stroke ? ` stroke="${stroke}"` : ''}/><polygon points="${x - TW},${y - h1} ${x},${y + TH - h1} ${x},${y + TH - h2} ${x - TW},${y - h2}" fill="${rgbc(shade(T, .92), oL)}"${stroke ? ` stroke="${stroke}"` : ''}/>`;
       const tower = (x, y, H, T, L, id, beacon) => {
-        const baseH = 14, capH = 16, edge = rgbc(shade(T, .5), .3); let s = '';
+        const baseH = THK, capH = THK, edge = rgbc(shade(T, .5), .3); let s = '';
         if (H <= baseH + capH) { s += band(x, y, 0, H, .86, .86, T, edge); }
-        else { s += band(x, y, 0, baseH, .88, .88, T, edge); s += band(x, y, baseH, H - capH, .26, .22, T, ''); s += band(x, y, H - capH, H, .86, .86, T, edge); }
+        else { s += band(x, y, 0, baseH, .88, .88, T, edge); s += band(x, y, baseH, H - capH, .26, .22, T, ''); s += band(x, y, H - capH, H, .72, .72, T, edge); }
         const top = `${x},${y - TH - H} ${x + TW},${y - H} ${x},${y + TH - H} ${x - TW},${y - H}`;
-        s += `<polygon points="${top}" fill="${rgbc(tint(T, .22), .95)}" stroke="rgba(255,255,255,.6)"/>`;
+        s += `<polygon points="${top}" fill="${rgbc(tint(T, .22), .78)}" stroke="rgba(255,255,255,.5)"/>`;
         if (L >= 1) s += `<polygon points="${top}" fill="none" stroke="#E05641" stroke-width="2"/>`;
         return `<g class="seat" data-id="${id}">${s}${beacon || ''}</g>`;
       };
 
+      const LABEL_GAP = 52;
+      const TOWER_HEAD = maxH + TH + 40;
+
       let body = '', labels = '', occupied = 0, hot = 0;
       FLOORS.forEach((f, i) => {
-        const yOff = -i * GAP; const has = (c, r) => f.cellset.has(c + ',' + r);
+        const yOff = floorOffsets[i]; const has = (c, r) => f.cellset.has(c + ',' + r);
         const rfVis = makeRfVis(has); const lfVis = makeLfVis(has);
-        let fGround = '', fShadow = '', fGlow = '', fCubes = '', lvx = 1e9, lvy = 0;
+        let fGround = '', fShadow = '', fGlow = '', fCubes = '';
+        let fMinX = 1e9, fMaxX = -1e9, fTopY = 1e9;
         f.cells.forEach(([c, r]) => {
           const [x0, y0] = getPos(c, r); const y = y0 + yOff;
+          fMinX = Math.min(fMinX, x0 - TW); fMaxX = Math.max(fMaxX, x0 + TW);
+          if (y - TH < fTopY) fTopY = y - TH;
           fGround += `<polygon points="${x0},${y - TH} ${x0 + TW},${y} ${x0},${y + TH} ${x0 - TW},${y}" fill="rgba(247,246,243,.4)" stroke="rgba(27,25,36,.09)"/>`;
           if (rfVis(c, r)) fGround += `<polygon points="${x0 + TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 + TW},${y + THK}" fill="rgba(27,25,36,.05)"/>`;
           if (lfVis(c, r)) fGround += `<polygon points="${x0 - TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 - TW},${y + THK}" fill="rgba(27,25,36,.08)"/>`;
-          if (x0 - TW < lvx) { lvx = x0 - TW; lvy = y; }
           ext(x0 - TW, y - TH); ext(x0 + TW, y + TH + THK);
         });
+        ext(fMinX, fTopY - TOWER_HEAD);
+        ext(fMaxX, fTopY - TOWER_HEAD);
+        labels += `<text x="${(fMinX + fMaxX) / 2}" y="${fTopY - TOWER_HEAD - LABEL_GAP}" text-anchor="middle" class="floor-lbl">${f.name}</text>`;
         const seats = f.assigned.slice().sort(sortFn);
         seats.forEach(s => {
           const a = s.agent; const [x0, y0] = getPos(s.c, s.r); const y = y0 + yOff;
@@ -2128,58 +2601,371 @@
           const T = TEAM_COLOR[teamOf(a)] || [140, 140, 150];
           if (a.status === 'offline') { fCubes += wire(x0, y, 10, 'rgba(27,25,36,.18)', a.id, false, a.flag ? mkBeacon(x0, y, 10) : ''); return; }
           const L = a.max ? a.used / a.max : 0; occupied++; if (L >= .8) hot++;
-          const H = minH + L * (maxH - minH); const beacon = a.flag ? mkBeacon(x0, y, L < .1 ? minH : H) : '';
-          if (L < .1) { fCubes += wire(x0, y, minH, rgbc(shade(T, .7), .5), a.id, false, beacon); return; }
+          const H = towerDisplayHeight(a, minH, maxH);
+          const beacon = a.flag ? mkBeacon(x0, y, H) : '';
+          if (L < .1) { fCubes += tower(x0, y, H, T, L, a.id, beacon); return; }
           fGlow += `<ellipse cx="${x0}" cy="${y}" rx="${TW * 1.2}" ry="${TH * 1.2}" fill="${rgbc(T, L * .42)}" filter="url(#bg)"/>`;
-          fCubes += tower(x0, y, H, T, L, a.id, beacon); ext(x0, y - TH - H - 24);
+          fCubes += tower(x0, y, H, T, L, a.id, beacon);
         });
         body += fGround + fShadow + fGlow + fCubes;
-        labels += `<text x="${lvx - 12}" y="${lvy + 4}" text-anchor="end" class="floor-lbl">${f.name}</text>`;
-        ext(lvx - 96, lvy);
       });
       const pad = 30, vb = `${minX - pad} ${minY - pad} ${(maxX - minX) + pad * 2} ${(maxY - minY) + pad * 2}`;
       const svg = `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="bg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="9"/></filter></defs><g>${body}</g><g>${labels}</g></svg>`;
       return { svg, occupied, hot };
     }
-    function attachSeats() {
+    function attachSeats(root) {
+      const canvas = root?.querySelector('.room-canvas');
+      if (!canvas || canvas.dataset.seatsBound) return;
+      canvas.dataset.seatsBound = '1';
       const tip = document.getElementById('roomTip');
-      document.querySelectorAll('.seat[data-id]').forEach(g => {
+      canvas.addEventListener('mousemove', e => {
+        const g = e.target.closest('.seat[data-id]');
+        if (!g) return;
         const a = AGENTS.find(x => x.id === g.dataset.id);
-        g.addEventListener('mousemove', e => {
-          const load = a.max ? Math.round(a.used / a.max * 100) : 0;
-          tip.innerHTML = `<div class="tip-row"><img class="tip-av" src="${a.photo}" alt="" onerror="this.style.visibility='hidden'"><div><div class="tn">${a.name}${a.flag ? ' ⚑' : ''}</div><div class="tm">${a.role}</div></div></div><div class="tl">${a.status === 'offline' ? 'Desconnectat · ' + teamOf(a) : a.used + '/' + a.max + ' · ' + load + '% · ' + teamOf(a)}</div>`;
-          tip.style.display = 'block'; tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px';
-        });
-        g.addEventListener('mouseleave', () => tip.style.display = 'none');
-        g.addEventListener('click', () => { tip.style.display = 'none'; openDrawer(a.id); });
+        if (!a) return;
+        const load = a.max ? Math.round(a.used / a.max * 100) : 0;
+        tip.innerHTML = `<div class="tip-row"><img class="tip-av" src="${a.photo}" alt="" onerror="this.style.visibility='hidden'"><div><div class="tn">${a.name}${a.flag ? ' ⚑' : ''}</div><div class="tm">${a.role}</div></div></div><div class="tl">${a.status === 'offline' ? 'Desconnectat · ' + teamOf(a) : a.used + '/' + a.max + ' · ' + load + '% · ' + teamOf(a)}</div>`;
+        tip.style.display = 'block'; tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+      });
+      canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+      canvas.addEventListener('click', e => {
+        const g = e.target.closest('.seat[data-id]');
+        if (!g) return;
+        tip.style.display = 'none';
+        openDrawer(g.dataset.id);
       });
     }
 
-    /* ───────── Router ───────── */
-    let current = 'overview';
-    function go(v, anchor) {
-      if (v !== 'overview') Scene3D.dispose();
-      current = v;
-      document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
-      if (v === 'overview') renderOverview();
-      else if (v === 'detail') renderDetail();
-      else renderPlaceholder(v);
-      if (anchor && v === 'detail') { const el = document.getElementById('sec-' + anchor); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } }
-      if (v !== 'detail') window.scrollTo(0, 0);
-    }
-    document.querySelectorAll('#nav button').forEach(b => b.onclick = () => go(b.dataset.view));
-    // quick search jumps to agents
-    document.getElementById('qsearch').addEventListener('input', e => {
-      filter.q = e.target.value;
-      if (current !== 'detail') go('detail', 'agents');
-      else updateAgents();
+    /* ───────── Workspace shell ───────── */
+    const LEGACY_VIEW_MAP = { detail: 'operations' };
+
+    PanoramaWorkspace.registerPanelType({
+      viewType: 'overview',
+      defaultLabel: 'Overview',
+      mount(container) { renderOverview(container); },
+      activate() { startBuildingAnimation(); },
+      deactivate() { Scene3D.dispose(); },
     });
+
+    PanoramaWorkspace.registerPanelType({
+      viewType: 'operations',
+      defaultLabel: 'Operations',
+      mount(container) { renderDetail(container); },
+      activate(container, config) {
+        if (config.anchor) {
+          requestAnimationFrame(() => {
+            const el = container.querySelector('#sec-' + config.anchor);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }
+        startBuildingAnimation();
+      },
+    });
+
+    PanoramaWorkspace.registerPanelType({
+      viewType: 'work',
+      defaultLabel: 'Work',
+      mount(container) { renderPlaceholder(container, 'work'); },
+    });
+
+    PanoramaWorkspace.registerPanelType({
+      viewType: 'skills',
+      defaultLabel: 'Skills',
+      mount(container) { renderPlaceholder(container, 'skills'); },
+    });
+
+    const Panorama = {
+      open(viewType, opts = {}) {
+        const config = { ...(opts.config || {}) };
+        if (opts.anchor) config.anchor = opts.anchor;
+        const descriptor = {
+          viewType,
+          label: opts.label,
+          config,
+          pinned: opts.pinned,
+        };
+        return opts.newTab
+          ? PanoramaWorkspace.open(descriptor)
+          : PanoramaWorkspace.openOrFocus(descriptor);
+      },
+      home() {
+        const overview = PanoramaWorkspace.listPanels().find((p) => p.viewType === 'overview');
+        if (overview) PanoramaWorkspace.activate(overview.id);
+        else PanoramaWorkspace.open({ viewType: 'overview', pinned: true });
+      },
+      activeViewType() { return PanoramaWorkspace.activeViewType(); },
+      activePanelEl() {
+        const p = PanoramaWorkspace.activePanel();
+        return p ? document.querySelector(`[data-panel-id="${p.id}"]`) : null;
+      },
+    };
+    window.Panorama = Panorama;
+    window.go = (viewType, anchor) => Panorama.open(LEGACY_VIEW_MAP[viewType] || viewType, { anchor });
+
+    PanoramaWorkspace.init({
+      tabBarEl: document.getElementById('wsTabs'),
+      stageEl: document.getElementById('wsStage'),
+      catalogEl: document.getElementById('wsCatalog'),
+      defaults: [{ id: 'p-overview', viewType: 'overview', label: 'Overview', pinned: true }],
+    });
+
+    PanoramaWorkspace.onChange((event, panel) => {
+      if (event === 'activate' && panel.viewType !== 'operations') window.scrollTo(0, 0);
+    });
+
+    /* ───────── Global search (header dropdown) ───────── */
+    const DROPDOWN_TRANSITION_MS = 180;
+    const CONTENT_TRANSITION_MS = 220;
+    const GlobalSearch = {
+      input: null,
+      drop: null,
+      body: null,
+      content: null,
+      blurTimer: null,
+      closeTimeoutId: null,
+      heightTimer: null,
+      activeIdx: -1,
+      items: [],
+      open: false,
+
+      init() {
+        this.input = document.getElementById('qsearch');
+        this.drop = document.getElementById('qsearchResults');
+        this.body = document.getElementById('qsearchBody');
+        this.content = document.getElementById('qsearchContent');
+        this.input.addEventListener('focus', () => this.openPanel());
+        this.input.addEventListener('input', () => { this.activeIdx = -1; this.render(); });
+        this.input.addEventListener('keydown', e => this.onKey(e));
+        this.input.addEventListener('blur', () => {
+          this.blurTimer = setTimeout(() => this.closePanel(), 140);
+        });
+        this.drop.addEventListener('mousedown', e => {
+          if (e.target.closest('.qsearch-item')) e.preventDefault();
+        });
+        this.drop.addEventListener('click', e => {
+          const item = e.target.closest('.qsearch-item');
+          if (item) this.select(item.dataset.kind, item.dataset.id);
+        });
+        document.addEventListener('keydown', e => {
+          if (e.key === 'Escape' && this.isOpen()) { e.preventDefault(); this.closePanel(true); }
+        });
+      },
+
+      isOpen() { return this.open; },
+
+      syncAnimation() {
+        if (this.open) {
+          clearTimeout(this.closeTimeoutId);
+          this.drop.hidden = false;
+          this.drop.classList.remove('is-open');
+          requestAnimationFrame(() => {
+            this.drop.classList.add('is-open');
+          });
+          return;
+        }
+
+        this.drop.classList.remove('is-open');
+        clearTimeout(this.closeTimeoutId);
+        this.closeTimeoutId = setTimeout(() => {
+          this.drop.hidden = true;
+        }, DROPDOWN_TRANSITION_MS);
+      },
+
+      openPanel() {
+        clearTimeout(this.blurTimer);
+        const wasOpen = this.open;
+        this.open = true;
+        if (!wasOpen) this.syncAnimation();
+        this.input.setAttribute('aria-expanded', 'true');
+        this.render();
+      },
+
+      closePanel(clear) {
+        clearTimeout(this.blurTimer);
+        clearTimeout(this.heightTimer);
+        if (this.body) {
+          this.body.style.height = '';
+          this.body.style.transition = '';
+          this.body.classList.remove('has-scroll');
+        }
+        if (!this.open && this.drop.hidden) return;
+        this.open = false;
+        this.syncAnimation();
+        this.input.setAttribute('aria-expanded', 'false');
+        this.activeIdx = -1;
+        if (clear) { this.input.value = ''; this.input.blur(); }
+      },
+
+      esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); },
+
+      query() { return this.input.value.trim().toLowerCase(); },
+
+      run(q) {
+        if (!q) return { agents: [], queues: [], skills: [] };
+        const agents = AGENTS.filter(a =>
+          a.name.toLowerCase().includes(q) ||
+          a.role.toLowerCase().includes(q) ||
+          teamOf(a).toLowerCase().includes(q)
+        ).slice(0, 8);
+        const queues = queueState.filter(qu => qu.name.toLowerCase().includes(q)).slice(0, 6);
+        const skills = SKILLS.filter(s => s.name.toLowerCase().includes(q)).slice(0, 6);
+        return { agents, queues, skills };
+      },
+
+      group(lbl, items) {
+        return `<div class="qsearch-group"><div class="qsearch-group-lbl">${lbl}</div>${items}</div>`;
+      },
+
+      agentItem(a, idx) {
+        const st = STATUS[a.status];
+        const [g1, g2] = avGrad(NAMES.findIndex(n => n[0] === a.name));
+        return `<button type="button" class="qsearch-item${idx === this.activeIdx ? ' on' : ''}" role="option" data-kind="agent" data-id="${a.id}">
+          <span class="si-av" style="background:linear-gradient(135deg,${g1},${g2})"><span>${initials(a.name)}</span><img src="${a.photo}" alt="" loading="lazy" onerror="this.remove()"></span>
+          <span class="si-main"><div class="si-title">${this.esc(a.name)}${a.flag ? ' ⚑' : ''}</div><div class="si-meta">${this.esc(a.role)}</div></span>
+          <span class="si-badge" style="color:${st.c};background:color-mix(in srgb,${st.c} 12%,transparent)">${st.lbl}</span>
+        </button>`;
+      },
+
+      queueItem(q, idx) {
+        const letter = q.name.trim()[0].toUpperCase();
+        return `<button type="button" class="qsearch-item${idx === this.activeIdx ? ' on' : ''}" role="option" data-kind="queue" data-id="${q.id}">
+          <span class="si-thumb" style="background:${q.color}">${letter}</span>
+          <span class="si-main"><div class="si-title">${this.esc(q.name)}</div><div class="si-meta">${q.backlog} backlog · ${q.online} online</div></span>
+          <span class="si-kbd">Queue</span>
+        </button>`;
+      },
+
+      skillItem(s, idx) {
+        const letter = s.name.trim()[0].toUpperCase();
+        return `<button type="button" class="qsearch-item${idx === this.activeIdx ? ' on' : ''}" role="option" data-kind="skill" data-id="${s.id}">
+          <span class="si-thumb" style="background:color-mix(in srgb,var(--accent) 78%,#fff)">${letter}</span>
+          <span class="si-main"><div class="si-title">${this.esc(s.name)}</div><div class="si-meta">${s.agents} qualified agents</div></span>
+          <span class="si-kbd">Skill</span>
+        </button>`;
+      },
+
+      maxBodyHeight() {
+        if (!this.body) return 0;
+        const max = parseFloat(getComputedStyle(this.body).maxHeight);
+        return Number.isFinite(max) ? max : this.body.scrollHeight;
+      },
+
+      syncContentHeight(prevHeight) {
+        if (!this.body || !this.content) return;
+
+        clearTimeout(this.heightTimer);
+        const cap = this.maxBodyHeight();
+        const nextHeight = Math.min(this.content.scrollHeight, cap);
+        const canAnimate =
+          this.isOpen() &&
+          this.drop.classList.contains('is-open') &&
+          prevHeight > 0 &&
+          prevHeight !== nextHeight &&
+          !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        this.body.classList.remove('has-scroll');
+        this.body.style.transition = '';
+        this.body.style.height = '';
+
+        if (!canAnimate) {
+          this.body.classList.toggle('has-scroll', this.content.scrollHeight > cap);
+          return;
+        }
+
+        this.body.style.height = `${prevHeight}px`;
+        this.body.offsetHeight;
+        this.body.style.transition = `height ${CONTENT_TRANSITION_MS}ms ease`;
+        this.body.style.height = `${nextHeight}px`;
+        this.heightTimer = setTimeout(() => {
+          this.body.style.height = '';
+          this.body.style.transition = '';
+          this.body.classList.toggle('has-scroll', this.content.scrollHeight > cap);
+        }, CONTENT_TRANSITION_MS);
+      },
+
+      setContent(html) {
+        const prevHeight = this.body?.offsetHeight || 0;
+        this.content.innerHTML = html;
+        this.syncContentHeight(prevHeight);
+      },
+
+      render() {
+        const q = this.query();
+        if (!q) {
+          this.items = [];
+          this.setContent('<div class="qsearch-hint">Search agents, queues, and skills.<br>Your current view stays unchanged.</div>');
+          return;
+        }
+        const { agents, queues, skills } = this.run(q);
+        this.items = [
+          ...agents.map(a => ({ kind: 'agent', id: a.id })),
+          ...queues.map(qu => ({ kind: 'queue', id: qu.id })),
+          ...skills.map(s => ({ kind: 'skill', id: s.id })),
+        ];
+        if (!this.items.length) {
+          this.setContent(`<div class="qsearch-empty">No results for "<b>${this.esc(q)}</b>"</div>`);
+          return;
+        }
+        let html = '', idx = 0;
+        if (agents.length) html += this.group('Agents', agents.map(a => this.agentItem(a, idx++)).join(''));
+        if (queues.length) html += this.group('Queues', queues.map(qu => this.queueItem(qu, idx++)).join(''));
+        if (skills.length) html += this.group('Skills', skills.map(s => this.skillItem(s, idx++)).join(''));
+        this.setContent(html);
+      },
+
+      onKey(e) {
+        if (!this.isOpen()) return;
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          this.activeIdx = Math.min(this.activeIdx + 1, this.items.length - 1);
+          this.render();
+          this.scrollActive();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          this.activeIdx = Math.max(this.activeIdx - 1, -1);
+          this.render();
+          this.scrollActive();
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const idx = this.activeIdx >= 0 ? this.activeIdx : 0;
+          const item = this.items[idx];
+          if (item) this.select(item.kind, item.id);
+        }
+      },
+
+      scrollActive() {
+        const el = this.drop.querySelector('.qsearch-item.on');
+        if (el) el.scrollIntoView({ block: 'nearest' });
+      },
+
+      select(kind, id) {
+        if (kind === 'agent') openDrawer(id);
+        else if (kind === 'queue') {
+          Panorama.open('operations', { anchor: 'queues' });
+        } else if (kind === 'skill') Panorama.open('skills');
+        this.closePanel(true);
+      }
+    };
+    GlobalSearch.init();
 
     /* ───────── Live sim ───────── */
     function tickClock() { document.getElementById('clock').textContent = new Date().toLocaleTimeString('ca-ES', { hour12: false }); }
     function tickWork() {
       AGENTS.forEach(a => { if (a.work) a.workSec++; });
       document.querySelectorAll('.card').forEach(c => { const a = AGENTS.find(x => x.id === c.dataset.id); if (a && a.work) { const t = c.querySelector('.timer'); if (t) t.textContent = fmtDur(a.workSec); } });
+    }
+    function tickAgents() {
+      AGENTS.forEach(a => {
+        if (a.status === 'offline' || a.status === 'away') return;
+        if (Math.random() < 0.42) {
+          const delta = Math.random() < 0.52 ? 1 : -1;
+          a.used = Math.max(0, Math.min(a.max, a.used + delta));
+        }
+        a.status = a.used >= a.max ? 'busy' : 'online';
+      });
+      if (isView('overview')) updateOverviewMetrics();
+      else if (isView('operations')) updateAgents();
+      Scene3D.update(16);
     }
     function tickQueues() {
       queueState.forEach(q => {
@@ -2188,20 +2974,27 @@
         if (Math.random() < .35) q.backlog = Math.max(0, q.backlog + rnd(-1, 1));
         if (Math.random() < .2) q.online = Math.max(1, q.online + (Math.random() < .5 ? -1 : 1));
       });
-      if (current === 'overview') updateOverview(); else if (current === 'detail') { const qg = document.querySelector('#sec-queues .qgrid'); if (qg) qg.innerHTML = queueState.map(queueCard).join(''); updateRoomPanel(); }
+      if (isView('overview')) updateOverviewMetrics();
+      else if (isView('operations')) {
+        const root = activePanelEl();
+        const qg = root?.querySelector('#sec-queues .qgrid');
+        if (qg) qg.innerHTML = queueState.map(queueCard).join('');
+      }
     }
     function maybeFlag() {
       const on = AGENTS.filter(a => a.status === 'online' && !a.flag);
       if (Math.random() < .4 && on.length) {
         const a = pick(on); a.flag = true;
         a.flagReason = pick(['Client irat — demana responsable', 'Dubte sobre devolucions', 'Cas fora del seu skill', 'Aprovació de descompte']);
-        if (current === 'detail') { updateAgents(); updateRoomPanel(); } else if (current === 'overview') updateOverview();
+        if (isView('operations')) { updateAgents(); updateRoomPanel(); }
+        else if (isView('overview')) updateRoomPanel();
       }
     }
 
-    tickClock(); renderOverview();
+    tickClock();
     setInterval(tickClock, 1000);
     setInterval(tickWork, 1000);
+    setInterval(tickAgents, 3000);
     setInterval(tickQueues, 5000);
     setInterval(maybeFlag, 16000);
   </script>
