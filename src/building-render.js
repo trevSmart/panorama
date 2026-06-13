@@ -230,10 +230,9 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
       floorDividers.forEach((d) => {
         if (d.c !== c || d.r !== r) return; // draw once, from the canonical owner cell
         const [nc, nr] = d.edge === 'E' ? [c + 1, r] : [c, r + 1];
-        const [axB, ayB] = getPos(c, r); const ax = axB + xShift, ay = ayB + yOff;
         const [bxB, byB] = getPos(nc, nr); const bx = bxB + xShift, by = byB + yOff;
-        const mx = (ax + bx) / 2, my = (ay + by) / 2;
-        const dvx = bx - ax, dvy = by - ay;
+        const mx = (x0 + bx) / 2, my = (y + by) / 2;
+        const dvx = bx - x0, dvy = by - y;
         const px = -dvy * (TW / TH) / 2, py = dvx * (TH / TW) / 2;
         const g0 = [mx + px, my + py], g1 = [mx - px, my - py];
         const t0 = [g0[0], g0[1] - DIV_H], t1 = [g1[0], g1[1] - DIV_H];
