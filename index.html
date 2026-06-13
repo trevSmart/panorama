@@ -582,14 +582,6 @@
       padding: 36px 26px 64px
     }
 
-    .hello {
-      font-family: 'Space Grotesk';
-      font-size: 16px;
-      color: var(--dim);
-      font-weight: 500;
-      margin-bottom: 8px
-    }
-
     .verdict {
       display: flex;
       align-items: flex-start;
@@ -856,10 +848,6 @@
       background: var(--bg-tint)
     }
 
-    .ops-summary .hello {
-      margin-bottom: 6px
-    }
-
     .ops-summary .verdict h1 {
       font-size: 34px
     }
@@ -871,7 +859,7 @@
     .ops-layout {
       flex: 1;
       display: grid;
-      grid-template-columns: minmax(380px, 40%) 1fr;
+      grid-template-columns: minmax(280px, var(--ops-split, 40%)) 0px 1fr;
       min-height: 0;
       overflow: hidden
     }
@@ -879,9 +867,57 @@
     .ops-room {
       overflow-y: auto;
       overscroll-behavior: contain;
-      border-right: 1px solid var(--line);
       padding: 16px 20px 24px;
       background: var(--bg-tint)
+    }
+
+    .ops-resizer {
+      position: relative;
+      width: 0;
+      align-self: stretch;
+      border-right: 1px solid var(--line);
+      cursor: col-resize;
+      touch-action: none;
+      z-index: 5
+    }
+
+    .ops-resizer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -5px;
+      width: 11px
+    }
+
+    .ops-resizer::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 4px;
+      height: 36px;
+      transform: translate(-50%, -50%);
+      border-radius: 4px;
+      background: var(--line);
+      opacity: 0;
+      transition: opacity .15s
+    }
+
+    .ops-resizer:hover::after,
+    .ops-resizer.dragging::after {
+      opacity: 1;
+      background: var(--accent, var(--line))
+    }
+
+    .ops-resizer:hover,
+    .ops-resizer.dragging {
+      border-right-color: var(--accent, var(--line))
+    }
+
+    body.ops-resizing {
+      cursor: col-resize;
+      user-select: none
     }
 
     .ops-data {
@@ -2179,8 +2215,11 @@
       }
 
       .ops-room {
-        border-right: none;
         border-bottom: 1px solid var(--line)
+      }
+
+      .ops-resizer {
+        display: none
       }
     }
 
@@ -2612,6 +2651,56 @@
     .fe-grid:not([data-tool="door"]):not([data-tool="window"]):not([data-tool="erase"]) .fe-edge.door,
     .fe-grid:not([data-tool="door"]):not([data-tool="window"]):not([data-tool="erase"]) .fe-edge.window {
       cursor: default
+    }
+
+    /* Divider tool — interior edges become interactive in teal */
+    .fe-grid[data-tool="divider"] .fe-edge.interior {
+      pointer-events: auto
+    }
+
+    .fe-grid[data-tool="divider"] .fe-edge.interior:not(.divider) {
+      cursor: pointer
+    }
+
+    .fe-grid[data-tool="divider"] .fe-edge.interior.divider {
+      cursor: not-allowed
+    }
+
+    .fe-grid[data-tool="divider"] .fe-edge.interior:not(.divider)::after {
+      opacity: 1;
+      background: rgba(47, 158, 143, .55)
+    }
+
+    .fe-grid[data-tool="divider"] .fe-edge.interior:not(.divider):hover {
+      background: rgba(47, 158, 143, .1)
+    }
+
+    .fe-grid[data-tool="divider"] .fe-edge.interior:not(.divider):hover::after {
+      background: rgba(47, 158, 143, .85)
+    }
+
+    /* Placed dividers — always visible in teal */
+    .fe-edge.divider::after {
+      opacity: 1 !important;
+      background: rgba(47, 158, 143, .85) !important
+    }
+
+    .fe-edge.divider {
+      pointer-events: auto
+    }
+
+    /* Erase tool also removes dividers on interior edges */
+    .fe-grid[data-tool="erase"] .fe-edge.divider {
+      pointer-events: auto;
+      cursor: pointer
+    }
+
+    .fe-grid[data-tool="erase"] .fe-edge.divider:hover {
+      background: var(--alert-soft)
+    }
+
+    .fe-grid[data-tool="erase"] .fe-edge.divider:hover::after {
+      background: var(--alert) !important
     }
 
     .fe-hint {
