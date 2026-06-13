@@ -62,6 +62,35 @@ export function canonicalDivider(c, r, edge) {
 }
 
 /**
+ * Keep only dividers on existing cells whose edge is interior, canonicalized to
+ * E/S and deduped per canonical (c,r,edge).
+ * @param {unknown} dividers
+ * @param {Set<string>} cellset
+ * @returns {Array<{ c: number, r: number, edge: string }>}
+ */
+export function sanitizeDividers(dividers, cellset) {
+  if (!Array.isArray(dividers)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const d of dividers) {
+    if (!d || typeof d !== 'object') continue;
+    const { c, r, edge } = d;
+    if (!Number.isInteger(c) || !Number.isInteger(r)) continue;
+    if (!EDGES.includes(edge)) continue;
+    if (!cellset.has(k(c, r))) continue;
+    const [nc, nr] = NEIGHBOR[edge](c, r);
+    if (!cellset.has(k(nc, nr))) continue; // not an interior edge
+    const canon = canonicalDivider(c, r, edge);
+    if (!cellset.has(k(canon.c, canon.r))) continue;
+    const dedupe = `${canon.c},${canon.r},${canon.edge}`;
+    if (seen.has(dedupe)) continue;
+    seen.add(dedupe);
+    out.push(canon);
+  }
+  return out;
+}
+
+/**
  * Keep only openings on existing cells whose edge is exterior, with a valid
  * kind, deduped per (c,r,edge).
  * @param {unknown} openings

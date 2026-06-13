@@ -8,6 +8,7 @@ import {
   sanitizeOpenings,
   interiorEdges,
   canonicalDivider,
+  sanitizeDividers,
 } from '../src/data/wall-edges.js';
 
 test('EDGES lists the four grid directions', () => {
@@ -84,4 +85,27 @@ test('canonicalDivider rewrites O to the E of the left neighbour', () => {
 
 test('canonicalDivider rewrites N to the S of the upper neighbour', () => {
   assert.deepEqual(canonicalDivider(2, 3, 'N'), { c: 2, r: 2, edge: 'S' });
+});
+
+test('sanitizeDividers keeps interior edges, canonicalized and deduped', () => {
+  const cellset = new Set(['0,0', '1,0']);
+  const out = sanitizeDividers([
+    { c: 0, r: 0, edge: 'E' },
+    { c: 1, r: 0, edge: 'O' },
+  ], cellset);
+  assert.deepEqual(out, [{ c: 0, r: 0, edge: 'E' }]);
+});
+
+test('sanitizeDividers drops exterior edges and unknown cells', () => {
+  const cellset = new Set(['0,0', '1,0']);
+  const out = sanitizeDividers([
+    { c: 0, r: 0, edge: 'N' },
+    { c: 9, r: 9, edge: 'E' },
+    { c: 0, r: 0, edge: 'x' },
+  ], cellset);
+  assert.deepEqual(out, []);
+});
+
+test('sanitizeDividers returns [] for non-array input', () => {
+  assert.deepEqual(sanitizeDividers(undefined, new Set(['0,0'])), []);
 });
