@@ -531,7 +531,7 @@ function mountEditor(container) {
         name.title = 'Doble clic per reanomenar';
         const meta = document.createElement('span');
         meta.className = 'fe-floor-meta mono';
-        meta.textContent = `${f.cells.size}▦ ${f.seats.size}▣ ${f.openings.size}▭`;
+        meta.textContent = `${f.cells.size}▦ ${f.seats.size}▣ ${f.openings.size}▭ ${f.dividers.size}┊`;
         info.append(name, meta);
         const actions = document.createElement('div');
         actions.className = 'fe-floor-actions';
