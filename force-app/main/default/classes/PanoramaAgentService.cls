@@ -16,6 +16,7 @@ public with sharing class PanoramaAgentService {
         public String id;
         public String name;
         public String role;
+        public String recordUrl;
         public String status;
         public Integer max;
         public Integer used;
@@ -59,6 +60,7 @@ public with sharing class PanoramaAgentService {
             dto.id = String.valueOf(usp.UserId);
             dto.name = usp.User.Name;
             dto.role = String.isBlank(usp.User.Title) ? 'Agent' : usp.User.Title;
+            dto.recordUrl = buildRecordUrl(orgUrl, usp.UserId);
             dto.status = mapPresenceStatus(usp.ServicePresenceStatus?.MasterLabel);
             dto.max = usp.ConfiguredCapacity != null && usp.ConfiguredCapacity > 0
                 ? Integer.valueOf(usp.ConfiguredCapacity)
@@ -191,6 +193,15 @@ public with sharing class PanoramaAgentService {
             return 'chat';
         }
         return 'cas';
+    }
+
+    @TestVisible
+    private static String buildRecordUrl(String orgUrl, Id recordId) {
+        if (String.isBlank(orgUrl) || recordId == null) {
+            return null;
+        }
+        String base = orgUrl.endsWith('/') ? orgUrl.substring(0, orgUrl.length() - 1) : orgUrl;
+        return base + '/' + String.valueOf(recordId);
     }
 
     @TestVisible

@@ -21,4 +21,6 @@ The `sfdx-project.json` file contains useful configuration information for your 
 
 Salesforce Lightning Design System icons are used under the [Creative Commons Attribution-NoDerivatives 4.0 International License](https://creativecommons.org/licenses/by-nd/4.0/).
 
-The local icon package includes the full license text in `docs/salesforce-lightning-design-system-icons/License-for-icons.txt`. No Salesforce endorsement, sponsorship, or official status is implied.
+Source: [Salesforce Lightning Design System Icons](https://www.lightningdesignsystem.com/icons/).
+
+The local icon package includes the full license text in `docs/salesforce-lightning-design-system-icons/License-for-icons.txt`. The icons are redistributed as source assets without modified icon artwork; Panorama styles only the surrounding UI containers and rendered presentation. No Salesforce endorsement, sponsorship, or official status is implied.

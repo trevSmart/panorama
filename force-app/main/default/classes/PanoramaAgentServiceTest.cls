@@ -36,6 +36,16 @@ private class PanoramaAgentServiceTest {
     }
 
     @IsTest
+    static void buildRecordUrlHandlesOrgBaseAndRecordId() {
+        String orgUrl = 'https://example.my.salesforce.com/';
+        System.assertEquals(
+            'https://example.my.salesforce.com/' + UserInfo.getUserId(),
+            PanoramaAgentService.buildRecordUrl(orgUrl, UserInfo.getUserId())
+        );
+        System.assertEquals(null, PanoramaAgentService.buildRecordUrl(orgUrl, null));
+    }
+
+    @IsTest
     static void loadQueueIdsByUserReturnsMembership() {
         Group q = new Group(Name = 'Panorama Test Queue', Type = 'Queue');
         insert q;

@@ -28,6 +28,11 @@ async function apiFetch(apiBaseUrl, accessToken, path, init) {
   return res.json();
 }
 
+export function buildSalesforceRecordUrl(instanceUrl, recordId) {
+  if (!instanceUrl || !recordId) return null;
+  return `${instanceUrl.replace(/\/$/, '')}/${recordId}`;
+}
+
 /**
  * @param {{ runtimeConfig: import('../config.js').RuntimeConfig, getSession: () => Promise<import('../auth/salesforce-oauth.js').OAuthSession> }} options
  */
@@ -61,7 +66,13 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
       apiFetch(apiBaseUrl, session.accessToken, '/agents'),
       apiFetch(apiBaseUrl, session.accessToken, '/queues'),
     ]);
-    agents.splice(0, agents.length, ...(agentsRes.agents ?? []).map(normalizeAgent));
+    agents.splice(0, agents.length, ...(agentsRes.agents ?? []).map((agent) => {
+      const normalized = normalizeAgent(agent);
+      return {
+        ...normalized,
+        recordUrl: normalized.recordUrl || buildSalesforceRecordUrl(session.instanceUrl, normalized.id),
+      };
+    }));
     await attachAgentPhotoBlobs(agents, session.accessToken, session.instanceUrl);
     queueState.splice(0, queueState.length, ...(queuesRes.queues ?? []).map(normalizeQueue));
     floors = buildFloorsForAgents(agents);

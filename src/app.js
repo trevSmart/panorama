@@ -51,6 +51,21 @@ if (isOAuthCallbackPath()) {
     });
   }
 
+  if (provider.subscribe) {
+    provider.subscribe(() => {
+      const view = globalThis.Panorama?.activeViewType?.();
+      if (view === 'overview') globalThis.updateOverviewMetrics?.();
+      else if (view === 'operations') {
+        globalThis.updateAgents?.();
+        globalThis.updateRoomPanel?.();
+      } else {
+        globalThis.updateOverviewMetrics?.();
+        globalThis.updateRoomPanel?.();
+      }
+      globalThis.refreshFloors?.();
+    });
+  }
+
   function tickClock() {
     const el = document.getElementById('clock');
     if (el) el.textContent = new Date().toLocaleTimeString('en-GB', { hour12: false });
