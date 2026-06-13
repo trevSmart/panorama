@@ -8,7 +8,8 @@ global with sharing class PanoramaApi {
 
         try {
             if (path == '/agents') {
-                writeJson(res, 200, PanoramaAgentService.getAgents());
+                String scope = req.params.get('scope');
+                writeJson(res, 200, PanoramaAgentService.getAgents(scope));
             } else if (path == '/queues') {
                 writeJson(res, 200, PanoramaQueueService.getQueues());
             } else {

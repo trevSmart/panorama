@@ -326,6 +326,29 @@
       const btn = this.tabBarEl.querySelector('[data-action="catalog"]');
       if (btn) btn.setAttribute('aria-expanded', String(open));
       this._renderCatalog();
+      if (open) this._positionCatalog(btn);
+    }
+
+    /** Anchor the catalog under the "+" button that opens it. */
+    _positionCatalog(btn) {
+      if (!this.catalogEl || !btn || !this.catalogEl.offsetParent) return;
+      const wrapRect = this.catalogEl.offsetParent.getBoundingClientRect();
+      const btnRect = btn.getBoundingClientRect();
+      // Right-align the menu to the button so it opens beneath it.
+      const right = wrapRect.right - btnRect.right;
+      this.catalogEl.style.left = 'auto';
+      this.catalogEl.style.right = `${Math.max(0, right)}px`;
+    }
+
+    /** Scroll the active panel (or the page) back to the top. */
+    _scrollActiveToTop() {
+      const el = this.containers.get(this.activeId);
+      // Prefer the panel's own scroll container if it has one, else the page.
+      if (el && el.scrollHeight > el.clientHeight) {
+        el.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     }
 
     _onTabBarClick(e) {
@@ -338,7 +361,11 @@
       if (!btn) return;
 
       if (btn.dataset.action === 'activate') {
-        this.activate(btn.dataset.id);
+        if (btn.dataset.id === this.activeId) {
+          this._scrollActiveToTop();
+        } else {
+          this.activate(btn.dataset.id);
+        }
       } else if (btn.dataset.action === 'close') {
         e.stopPropagation();
         this.close(btn.dataset.id);

@@ -31,7 +31,21 @@ public with sharing class PanoramaAgentService {
         public List<AgentDto> agents;
     }
 
+    /**
+     * Default scope: only agents currently connected to Omni-Channel.
+     */
     public static AgentsResponse getAgents() {
+        return getAgents('connected');
+    }
+
+    /**
+     * @param scope 'connected' (default) returns agents with a current Omni-Channel
+     *        presence. 'all' returns every Omni-enabled agent (connected or not);
+     *        agents without a current presence are reported as offline.
+     */
+    public static AgentsResponse getAgents(String scope) {
+        Boolean includeAll = scope != null && scope.equalsIgnoreCase('all');
+
         AgentsResponse response = new AgentsResponse();
         response.agents = new List<AgentDto>();
 
@@ -39,50 +53,104 @@ public with sharing class PanoramaAgentService {
 
         String orgUrl = Url.getOrgDomainUrl().toExternalForm();
 
-        List<UserServicePresence> presenceRecords = [
-            SELECT UserId, User.Name, User.Title, User.SmallPhotoUrl,
-                   ServicePresenceStatus.MasterLabel,
+        // Current Omni-Channel presence, keyed by user.
+        Map<Id, UserServicePresence> presenceByUser = new Map<Id, UserServicePresence>();
+        for (UserServicePresence usp : [
+            SELECT UserId, ServicePresenceStatus.MasterLabel,
                    StatusStartDate, ConfiguredCapacity
             FROM UserServicePresence
             WHERE IsCurrentState = true
-            ORDER BY User.Name
             LIMIT 500
-        ];
-
-        Set<Id> userIds = new Set<Id>();
-        for (UserServicePresence usp : presenceRecords) {
-            userIds.add(usp.UserId);
+        ]) {
+            presenceByUser.put(usp.UserId, usp);
         }
-        Map<Id, List<String>> queueIdsByUser = loadQueueIdsByUser(userIds);
 
-        for (UserServicePresence usp : presenceRecords) {
+        // Build the set of users to report.
+        Set<Id> userIds = new Set<Id>(presenceByUser.keySet());
+        if (includeAll) {
+            userIds.addAll(loadOmniEnabledUserIds());
+        }
+
+        Map<Id, List<String>> queueIdsByUser = loadQueueIdsByUser(userIds);
+        Map<Id, User> userById = userIds.isEmpty()
+            ? new Map<Id, User>()
+            : new Map<Id, User>([
+                SELECT Id, Name, Title, SmallPhotoUrl
+                FROM User
+                WHERE Id IN :userIds
+                ORDER BY Name
+            ]);
+
+        for (User u : userById.values()) {
+            UserServicePresence usp = presenceByUser.get(u.Id);
+
             AgentDto dto = new AgentDto();
-            dto.id = String.valueOf(usp.UserId);
-            dto.name = usp.User.Name;
-            dto.role = String.isBlank(usp.User.Title) ? 'Agent' : usp.User.Title;
-            dto.recordUrl = buildRecordUrl(orgUrl, usp.UserId);
-            dto.status = mapPresenceStatus(usp.ServicePresenceStatus?.MasterLabel);
-            dto.max = usp.ConfiguredCapacity != null && usp.ConfiguredCapacity > 0
+            dto.id = String.valueOf(u.Id);
+            dto.name = u.Name;
+            dto.role = String.isBlank(u.Title) ? 'Agent' : u.Title;
+            dto.recordUrl = buildRecordUrl(orgUrl, u.Id);
+            dto.status = usp == null
+                ? 'offline'
+                : mapPresenceStatus(usp.ServicePresenceStatus?.MasterLabel);
+            dto.max = usp != null && usp.ConfiguredCapacity != null && usp.ConfiguredCapacity > 0
                 ? Integer.valueOf(usp.ConfiguredCapacity)
                 : 5;
-            List<WorkItemDto> items = workByUser.containsKey(usp.UserId)
-                ? workByUser.get(usp.UserId)
+            List<WorkItemDto> items = workByUser.containsKey(u.Id)
+                ? workByUser.get(u.Id)
                 : new List<WorkItemDto>();
             dto.work = items;
             dto.used = items.size();
             dto.chans = buildChannelCounts(items);
             dto.queueIds = mergeQueueIds(
-                queueIdsByUser.containsKey(usp.UserId)
-                    ? queueIdsByUser.get(usp.UserId)
+                queueIdsByUser.containsKey(u.Id)
+                    ? queueIdsByUser.get(u.Id)
                     : new List<String>(),
                 items
             );
-            dto.loginMin = minutesSince(usp.StatusStartDate);
-            dto.photo = buildPhotoUrl(orgUrl, usp.User.SmallPhotoUrl);
+            dto.loginMin = usp == null ? 0 : minutesSince(usp.StatusStartDate);
+            dto.photo = buildPhotoUrl(orgUrl, u.SmallPhotoUrl);
             response.agents.add(dto);
         }
 
         return response;
+    }
+
+    /**
+     * User ids enabled for Omni-Channel: assigned to any presence configuration
+     * directly (PresenceUserConfigUser) or through their profile
+     * (PresenceUserConfigProfile).
+     */
+    @TestVisible
+    private static Set<Id> loadOmniEnabledUserIds() {
+        Set<Id> userIds = new Set<Id>();
+
+        for (PresenceUserConfigUser assignment : [
+            SELECT UserId FROM PresenceUserConfigUser LIMIT 5000
+        ]) {
+            if (assignment.UserId != null) {
+                userIds.add(assignment.UserId);
+            }
+        }
+
+        Set<Id> profileIds = new Set<Id>();
+        for (PresenceUserConfigProfile assignment : [
+            SELECT ProfileId FROM PresenceUserConfigProfile LIMIT 5000
+        ]) {
+            if (assignment.ProfileId != null) {
+                profileIds.add(assignment.ProfileId);
+            }
+        }
+        if (!profileIds.isEmpty()) {
+            for (User u : [
+                SELECT Id FROM User
+                WHERE ProfileId IN :profileIds AND IsActive = true
+                LIMIT 5000
+            ]) {
+                userIds.add(u.Id);
+            }
+        }
+
+        return userIds;
     }
 
     @TestVisible

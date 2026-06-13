@@ -19,8 +19,14 @@ import { MOCK_CAPABILITIES } from './types.js';
  * @typedef {import('./types.js').PanoramaCapabilities} PanoramaCapabilities
  */
 
-/** @returns {import('./types.js').Agent[]} */
-function getAgents() {
+/**
+ * @param {{ scope?: 'connected'|'all' }} [opts]
+ * In mock mode every agent is already available, so scope 'all' resolves to the
+ * same roster (as a promise, matching the Salesforce provider contract).
+ * @returns {import('./types.js').Agent[]|Promise<import('./types.js').Agent[]>}
+ */
+function getAgents(opts) {
+  if (opts?.scope === 'all') return Promise.resolve(agents.slice());
   return agents;
 }
 

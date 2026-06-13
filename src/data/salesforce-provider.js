@@ -48,6 +48,9 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
   let pollTimer = null;
   /** @type {string} */
   let apiBaseUrl = runtimeConfig.apiBaseUrl;
+  /** All Omni-enabled agents (connected or not), populated on demand. */
+  /** @type {import('./types.js').Agent[]} */
+  let allAgents = [];
 
   function notify() {
     listeners.forEach((fn) => fn());
@@ -79,6 +82,27 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
     notify();
     syncLegacyGlobals();
     return { agents, queueState };
+  }
+
+  /**
+   * Fetch every Omni-enabled agent (connected or not). Kept in a cache
+   * separate from the connected-only `agents` list used by Operations.
+   * @returns {Promise<import('./types.js').Agent[]>}
+   */
+  async function refreshAllAgents() {
+    const session = await getSession();
+    const base = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
+    const res = await apiFetch(base, session.accessToken, '/agents?scope=all');
+    const list = (res.agents ?? []).map((agent) => {
+      const normalized = normalizeAgent(agent);
+      return {
+        ...normalized,
+        recordUrl: normalized.recordUrl || buildSalesforceRecordUrl(session.instanceUrl, normalized.id),
+      };
+    });
+    await attachAgentPhotoBlobs(list, session.accessToken, session.instanceUrl);
+    allAgents = list;
+    return allAgents;
   }
 
   function getLegacyBindings() {
@@ -122,7 +146,15 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
       revokeAgentPhotoBlobs();
     },
 
-    getAgents: () => agents,
+    /**
+     * @param {{ scope?: 'connected'|'all' }} [opts]
+     * scope 'all' returns every Omni-enabled agent (async fetch); the default
+     * returns the connected-only list used by Operations (synchronous).
+     */
+    getAgents(opts) {
+      if (opts?.scope === 'all') return refreshAllAgents();
+      return agents;
+    },
     getQueues: () => queueState,
     refresh,
     subscribe(fn) {

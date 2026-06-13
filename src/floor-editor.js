@@ -420,10 +420,14 @@ function mountEditor(container) {
     const [item] = place.floors.splice(from, 1);
     place.floors.splice(to, 0, item);
     if (place.id === state.activePlaceId) updateActiveAfterFloorReorder(from, to);
-    syncDirty();
-    renderPlaces();
-    renderGrid();
-    schedulePreview();
+    // Reordering persists immediately so the floor order survives across
+    // sessions without needing an explicit Save. commitToStore re-renders.
+    if (!commitToStore()) {
+      syncDirty();
+      renderPlaces();
+      renderGrid();
+      schedulePreview();
+    }
   }
 
   function bindFloorDrag(grab, row, place, index, floorList) {
@@ -854,7 +858,10 @@ function mountEditor(container) {
   }
 
   /* ── save / reset ── */
-  container.querySelector('.fe-save').addEventListener('click', () => {
+
+  // Persist the current places to localStorage and refresh dependent views.
+  // Returns true on success; on failure shows a message and leaves state dirty.
+  function commitToStore(okMsg) {
     try {
       const saved = saveCustomRoom(
         state.places.map((p) => ({ id: p.id, name: p.name, floors: p.floors.map(toArrayFloor) })),
@@ -871,10 +878,16 @@ function mountEditor(container) {
       setSavedBaseline();
       renderPlaces(); renderGrid(); schedulePreview();
       globalThis.refreshFloors?.();
-      showMsg('✓ Desat. Les vistes ja mostren el nou disseny.', 'ok');
+      if (okMsg) showMsg(okMsg, 'ok');
+      return true;
     } catch {
       showMsg('No s\'ha pogut desar: cada planta necessita almenys una cel·la.', 'error');
+      return false;
     }
+  }
+
+  container.querySelector('.fe-save').addEventListener('click', () => {
+    commitToStore('✓ Desat. Les vistes ja mostren el nou disseny.');
   });
   container.querySelector('.fe-reset').addEventListener('click', () => {
     if (!state.dirty || !savedSnapshot) return;
