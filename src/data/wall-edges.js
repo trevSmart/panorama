@@ -81,7 +81,6 @@ export function sanitizeDividers(dividers, cellset) {
     const [nc, nr] = NEIGHBOR[edge](c, r);
     if (!cellset.has(k(nc, nr))) continue; // not an interior edge
     const canon = canonicalDivider(c, r, edge);
-    if (!cellset.has(k(canon.c, canon.r))) continue;
     const dedupe = `${canon.c},${canon.r},${canon.edge}`;
     if (seen.has(dedupe)) continue;
     seen.add(dedupe);
