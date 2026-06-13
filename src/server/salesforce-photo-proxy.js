@@ -1,4 +1,4 @@
-const ALLOWED_PHOTO_HOST = /\.(salesforce\.com|force\.com)$/i;
+const ALLOWED_PHOTO_HOST = /^(?:[a-z0-9-]+\.)*(?:salesforce\.com|force\.com)$/i;
 
 /**
  * Proxies authenticated Salesforce profile photo requests for the SPA.
@@ -27,12 +27,17 @@ export async function handleSalesforcePhotoRequest(req, res) {
     return;
   }
 
-  if (!ALLOWED_PHOTO_HOST.test(parsed.hostname) || !parsed.pathname.includes('/profilephoto/')) {
+  if (
+    parsed.protocol !== 'https:' ||
+    !ALLOWED_PHOTO_HOST.test(parsed.hostname) ||
+    !parsed.pathname.startsWith('/profilephoto/') ||
+    parsed.pathname.includes('..')
+  ) {
     res.writeHead(403).end('Forbidden');
     return;
   }
 
-  const sfRes = await fetch(photoUrl, {
+  const sfRes = await fetch(parsed.toString(), {
     headers: { Authorization: auth, Accept: 'image/*' },
   });
 
