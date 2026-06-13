@@ -47,6 +47,21 @@ export function interiorEdges(c, r, cellset) {
 }
 
 /**
+ * Normalize an interior edge to the canonical (E or S) form of the wall it
+ * represents, so a wall named from either adjacent cell maps to one record.
+ * @param {number} c
+ * @param {number} r
+ * @param {string} edge  one of N/S/E/O
+ * @returns {{ c: number, r: number, edge: string }}
+ */
+export function canonicalDivider(c, r, edge) {
+  if (edge === 'E' || edge === 'S') return { c, r, edge };
+  const [nc, nr] = NEIGHBOR[edge](c, r);
+  // O -> left neighbour's E ; N -> upper neighbour's S
+  return { c: nc, r: nr, edge: edge === 'O' ? 'E' : 'S' };
+}
+
+/**
  * Keep only openings on existing cells whose edge is exterior, with a valid
  * kind, deduped per (c,r,edge).
  * @param {unknown} openings

@@ -7,6 +7,7 @@ import {
   exteriorEdges,
   sanitizeOpenings,
   interiorEdges,
+  canonicalDivider,
 } from '../src/data/wall-edges.js';
 
 test('EDGES lists the four grid directions', () => {
@@ -70,4 +71,17 @@ test('interiorEdges returns edges whose neighbour IS a floor cell', () => {
 
 test('interiorEdges returns empty for an isolated cell', () => {
   assert.deepEqual(interiorEdges(0, 0, new Set(['0,0'])), []);
+});
+
+test('canonicalDivider keeps E and S as-is', () => {
+  assert.deepEqual(canonicalDivider(2, 3, 'E'), { c: 2, r: 3, edge: 'E' });
+  assert.deepEqual(canonicalDivider(2, 3, 'S'), { c: 2, r: 3, edge: 'S' });
+});
+
+test('canonicalDivider rewrites O to the E of the left neighbour', () => {
+  assert.deepEqual(canonicalDivider(2, 3, 'O'), { c: 1, r: 3, edge: 'E' });
+});
+
+test('canonicalDivider rewrites N to the S of the upper neighbour', () => {
+  assert.deepEqual(canonicalDivider(2, 3, 'N'), { c: 2, r: 2, edge: 'S' });
 });
