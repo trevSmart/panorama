@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "live-server --port=3000 --watch=index.html,assets,src --open=/",
+    "start": "node scripts/free-port.js && node src/index.js",
+    "dev": "node scripts/free-port.js && PANORAMA_DEV=1 node --watch src/index.js",
     "test": "node --test"
   },
   "keywords": [],

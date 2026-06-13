@@ -41,8 +41,8 @@ The prototype uses fictional data (`AGENTS`, `QUEUES`, `FLOORS`) and a real-time
 ### Local development
 
 ```bash
-npm start   # static Node server → http://localhost:3000
-npm run dev # live-server with hot reload
+npm start   # Node dev server (OAuth + Apex REST proxy) → http://localhost:3000
+npm run dev # same server with file watch + browser reload on save
 ```
 
 `src/index.js` is only a static file server; there is no business logic or Salesforce calls.
@@ -72,17 +72,25 @@ Each native supervisor capability must be mapped to a data source or API. Some f
 - Unified UX and fast agent search
 - Work and backlog views by skills (design pending)
 
-## Target architecture
+## Target architecture (current decision)
+
+**Phase 1 — Standalone SPA + Apex REST.** One product surface: the Panorama UI stays a standalone web app (evolved from `index.html`); Salesforce hosts only the **API layer** (Apex REST). No LWC UI, no hybrid bridge components.
+
+Rationale: validate the product with real data and full UI freedom (dense dashboards, team map) without managing multiple deployment surfaces. If the product is not viable, we stop without sunk cost in a Lightning migration.
+
+**Deferred (not ruled out):** hybrid (SPA + thin in-org LWC bridge for write actions), full LWC, AppExchange packaging.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Panorama UI (LWC or SPA embedded in Lightning)         │
+│  Panorama SPA (standalone web app)                      │
 │  · Overview · Operations · Work · Skills                │
+│  · UI knows domain models only — not Salesforce shapes  │
 └──────────────────────┬──────────────────────────────────┘
-                       │ Salesforce APIs (OAuth / Session)
+                       │ HTTPS + OAuth 2.0 PKCE (External Client App)
 ┌──────────────────────▼──────────────────────────────────┐
-│  Service layer (Apex +/or approved external middleware) │
-│  · Data aggregation · Cache · Real-time subscriptions   │
+│  Apex REST API (`force-app/`)                           │
+│  · Aggregates SOQL · Maps to Panorama domain JSON       │
+│  · Single deploy unit in Salesforce                     │
 └──────────────────────┬──────────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────┐
@@ -93,17 +101,41 @@ Each native supervisor capability must be mapped to a data source or API. Some f
 
 ### Stack decision (important)
 
-The current **Node + static HTML** prototype is valid for the **UI concept phase**, but it is **not the final architecture** if the goal is distribution via **Salesforce AppExchange** as a managed package.
+| Approach | Phase 1 | Notes |
+|----------|---------|-------|
+| **Standalone SPA + Apex REST** | **Selected** | Rich UI, one frontend deploy + one SF metadata deploy; read-first |
+| **Hybrid SPA + LWC bridge** | Deferred | Best of both worlds for write actions; more deploy surfaces |
+| **LWC + Apex (full in-org UI)** | Deferred | AppExchange-friendly; UI constraints for Panorama |
+| **Node as production runtime** | Not planned | Dev server only; no business logic in Node |
 
-| Approach | AppExchange | Notes |
-|----------|-------------|-------|
-| **LWC + Apex** (Salesforce DX) | Yes — standard path | Frontend inside the org, Apex backend, native APIs |
-| **External SPA + Connected App** | Partial — not a classic managed package | Requires own hosting, OAuth, separate security review |
-| **Node as production runtime** | Not recommended | AppExchange expects logic to live inside Salesforce or approved services (Heroku, etc.) |
+Node remains a **local static dev server** only (`src/index.js`). Production data access goes through Apex REST, never direct SOQL from the browser.
 
-**Recommendation:** keep Node only as a local prototyping tool. When moving to real data, migrate to a **Salesforce DX** project (`force-app/`) with **LWC** for the UI and **Apex** for the service layer. The visual design from the prototype can be ported to LWC component by component.
+### Flexibility rules (keep architecture swappable)
 
-If an external service is needed (e.g. WebSockets or heavy aggregation), consider **Heroku** or middleware with **Named Credentials** — but that complicates AppExchange Security Review.
+The UI must not depend on Salesforce field names, SOQL shapes, or auth mechanics. Use these boundaries:
+
+1. **Domain models** — stable types (`Agent`, `Queue`, `WorkItem`, …) defined in `src/data/`, shared by all views.
+2. **DataProvider interface** — UI calls `getAgents()`, `getQueues()`, `subscribe()`, etc. Implementations: `mock` (simulator) and `salesforce` (Apex REST client).
+3. **Capability flags** — provider exposes what it can do (`canChangePresence: false` in phase 1). UI disables actions instead of branching on architecture.
+4. **Apex maps, UI does not** — REST responses already match domain models; mapping from `UserServicePresence` / `AgentWork` lives in Apex only.
+5. **Auth adapter** — separate from DataProvider (`mock` needs none; `salesforce` uses **External Client App** OAuth with PKCE). Swapping auth does not touch views.
+
+### External auth (External Client App)
+
+Panorama uses **External Client Apps (ECA)**, not legacy Connected Apps. New Connected App creation is blocked from Spring '26; ECA is the long-term Salesforce model.
+
+| Item | Choice |
+|------|--------|
+| App type | External Client App (Local, single org) |
+| OAuth flow | Authorization Code + **PKCE** (public SPA — no client secret in browser) |
+| Scopes | `api`, `refresh_token`, `offline_access` |
+| Access control | ECA is closed by default → Permission Set + App Policies |
+| CORS | Setup → CORS: allow SPA origin + enable OAuth endpoints |
+| Endpoints | Same as always: `/services/oauth2/authorize`, `/services/oauth2/token`, then Apex REST |
+
+Do **not** use Username-Password OAuth (unsupported on ECA). Do **not** store consumer secret in the SPA or git — only the Consumer Key (`client_id`) in env config.
+
+This lets a later move to hybrid (add an `ActionBridge` provider) or full LWC (replace SPA, keep Apex) without rewriting the domain layer or view logic.
 
 ## Salesforce integration — agent guidelines
 
@@ -128,15 +160,25 @@ If an external service is needed (e.g. WebSockets or heavy aggregation), conside
 ```
 panorama/
 ├── AGENTS.md              ← this file
-├── index.html             ← UI prototype (current phase)
+├── index.html             ← UI (migrating to use src/data/ providers)
 ├── assets/                ← logos, images
-├── src/index.js           ← static dev server
-├── force-app/             ← (future) Salesforce DX metadata
+├── src/
+│   ├── index.js           ← static dev server (local only)
+│   ├── config.js          ← dataSource: mock | salesforce
+│   ├── ui/
+│   │   └── sf-icons.js    ← SLDS icon paths + HTML helpers
+│   └── data/
+│       ├── types.js       ← domain models
+│       ├── provider.js    ← DataProvider factory + contract
+│       ├── mock-provider.js
+│       └── salesforce-provider.js
+├── force-app/             ← Salesforce DX (API layer only in phase 1)
 │   └── main/default/
-│       ├── lwc/           ← Lightning components
-│       ├── classes/       ← Apex controllers and services
+│       ├── classes/       ← Panorama REST controllers + services
 │       └── permissionsets/
-└── docs/                  ← (future) Omni feature ↔ API mapping
+└── docs/
+    ├── salesforce-lightning-design-system-icons/  ← SLDS standard + utility icons
+    └── (future) Omni feature ↔ API mapping
 ```
 
 ## Development conventions
@@ -145,14 +187,28 @@ panorama/
 - **Minimal changes:** do not refactor outside the scope of the task
 - **Prototype vs production:** do not mix mock data with real API calls; mark the transition clearly
 - **Security:** respect Omni Supervisor permissions (`Manage Queue Membership`, `View Agent Queue Stats`, etc.)
+- **Salesforce visual language:** when the UI references a Salesforce concept (Queue, Case, Skill, Agent/User, Omni channels, work items, etc.), use the **standard SLDS object icons** from `docs/salesforce-lightning-design-system-icons/` — not emoji or unrelated symbols. Use `src/ui/sf-icons.js`, which renders icons via the **standard sprite** (`standard-sprite/svg/symbols.svg` + `<use href="#symbol">`) like `slds-icon_container` / `slds-icon` in Lightning. The SVG fills the colored tile; padding is only what the sprite artwork includes.
+
+| Panorama concept | SLDS icon (`standard/`) |
+|------------------|-------------------------|
+| Queue | `queue.svg` |
+| Skill | `skill.svg` |
+| Case / case channel | `case.svg` |
+| Voice | `voice_call.svg` |
+| Chat | `live_chat.svg` |
+| Email | `email.svg` |
+| WhatsApp | `whatsapp.svg` |
+| User / Agent | `user.svg` |
+| Work item (generic) | `work_order.svg` |
 
 ## Next steps
 
-1. Inventory native Omni Supervisor features (screen by screen, action by action)
-2. For each feature, document whether it has a public API, SOQL, Platform Event, or requires reverse engineering
-3. Create a Salesforce DX project and a first LWC that reads real `UserServicePresence` + `AgentWork`
-4. Replace prototype mock data with org data, component by component
-5. Define AppExchange strategy (managed package 2GP vs external Connected App)
+1. ~~Extract mock data~~ → done (`src/data/`)
+2. ~~Scaffold Apex REST~~ → done (`PanoramaApi`, agents + queues)
+3. Wire Operations view to provider refresh (real data re-render)
+4. **External Client App** in org + `src/auth/` PKCE flow + Bearer token in `salesforce-provider.js`
+5. Permission Set for Panorama supervisors (ECA App Policies)
+6. Later: action audit, AppExchange / hybrid / LWC
 
 ## Useful references
 

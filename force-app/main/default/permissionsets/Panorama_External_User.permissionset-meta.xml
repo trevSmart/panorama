@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Pre-authorizes supervisors to authenticate Panorama via External Client App OAuth.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Panorama External User</label>
+</PermissionSet>
