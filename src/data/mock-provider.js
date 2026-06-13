@@ -74,8 +74,10 @@ function startSimulation(hooks) {
       }
       a.status = a.used >= a.max ? 'busy' : 'online';
     });
-    if (hooks.isView('overview')) hooks.updateOverviewMetrics?.();
-    else if (hooks.isView('operations')) hooks.updateAgents?.();
+    if (hooks.isView('operations')) {
+      hooks.updateOverviewMetrics?.();
+      hooks.updateAgents?.();
+    }
     hooks.Scene3D?.update(16);
   }
 
@@ -86,8 +88,8 @@ function startSimulation(hooks) {
       if (Math.random() < 0.35) q.backlog = Math.max(0, q.backlog + rnd(-1, 1));
       if (Math.random() < 0.2) q.online = Math.max(1, q.online + (Math.random() < 0.5 ? -1 : 1));
     });
-    if (hooks.isView('overview')) hooks.updateOverviewMetrics?.();
-    else if (hooks.isView('operations')) {
+    if (hooks.isView('operations')) {
+      hooks.updateOverviewMetrics?.();
       const root = hooks.activePanelEl?.();
       const qg = root?.querySelector('#sec-queues .qgrid');
       if (qg && hooks.queueCard) qg.innerHTML = queueState.map(hooks.queueCard).join('');
@@ -106,9 +108,8 @@ function startSimulation(hooks) {
         'Aprovació de descompte',
       ]);
       if (hooks.isView('operations')) {
+        hooks.updateOverviewMetrics?.();
         hooks.updateAgents?.();
-        hooks.updateRoomPanel?.();
-      } else if (hooks.isView('overview')) {
         hooks.updateRoomPanel?.();
       }
     }

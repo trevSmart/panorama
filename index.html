@@ -579,8 +579,6 @@
 
     /* ── Overview ── */
     .ov {
-      max-width: 920px;
-      margin: 0 auto;
       padding: 36px 26px 64px
     }
 
@@ -832,8 +830,6 @@
 
     /* ── Detail views ── */
     .view {
-      max-width: 1240px;
-      margin: 0 auto;
       padding: 26px 26px 70px
     }
 
@@ -851,6 +847,25 @@
       flex-shrink: 0;
       padding: 18px 26px 14px;
       margin-bottom: 0
+    }
+
+    .ops-summary {
+      flex-shrink: 0;
+      padding: 22px 26px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-tint)
+    }
+
+    .ops-summary .hello {
+      margin-bottom: 6px
+    }
+
+    .ops-summary .verdict h1 {
+      font-size: 34px
+    }
+
+    .ops-summary .pillars {
+      margin-top: 18px
     }
 
     .ops-layout {
@@ -2174,6 +2189,10 @@
         grid-template-columns: repeat(2, 1fr)
       }
 
+      .ops-summary .verdict h1 {
+        font-size: 28px
+      }
+
       .room-legend {
         grid-template-columns: 1fr
       }
@@ -2200,7 +2219,8 @@
       height: calc(100vh - 58px);
       display: flex;
       flex-direction: column;
-      overflow: hidden
+      overflow: hidden;
+      min-height: 0
     }
 
     .view-floor-editor .vhead {
@@ -2210,19 +2230,13 @@
       border-bottom: 1px solid var(--line)
     }
 
-    .fe-dirty {
-      font-size: 12px;
-      color: var(--watch);
-      font-weight: 600;
-      letter-spacing: .02em
-    }
-
     .fe-layout {
       flex: 1;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 400px;
+      grid-template-columns: minmax(0, 1fr) 480px;
+      grid-template-rows: minmax(0, 1fr);
       gap: 18px;
-      align-items: start;
+      align-items: stretch;
       overflow: hidden;
       padding: 18px 26px;
       min-height: 0;
@@ -2232,13 +2246,15 @@
     .fe-main {
       display: flex;
       flex-direction: column;
-      min-height: 0
+      min-height: 0;
+      overflow: hidden
     }
 
     .fe-main .fe-grid-wrap {
       flex: 1;
       overflow: auto;
-      min-height: 0
+      min-height: 0;
+      overscroll-behavior: contain
     }
 
     .fe-main,
@@ -2253,7 +2269,10 @@
     .fe-side {
       display: flex;
       flex-direction: column;
-      gap: 18px
+      gap: 18px;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain
     }
 
     .fe-toolbar {
@@ -2262,7 +2281,8 @@
       justify-content: space-between;
       gap: 12px;
       flex-wrap: wrap;
-      margin-bottom: 14px
+      margin-bottom: 14px;
+      flex-shrink: 0
     }
 
     .fe-tools,
@@ -2282,6 +2302,19 @@
       transition: .12s var(--ease)
     }
 
+    .fe-tools button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px
+    }
+
+    .fe-tools button .fe-tool-icon {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+      flex-shrink: 0
+    }
+
     .fe-tools button:hover,
     .fe-actions button:hover {
       background: var(--surface-2);
@@ -2294,6 +2327,16 @@
       color: var(--accent)
     }
 
+    .fe-actions .fe-icon-btn {
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      font-size: 18px;
+      line-height: 1
+    }
+
     .fe-actions .fe-save.primary {
       background: var(--accent);
       border-color: var(--accent);
@@ -2302,6 +2345,26 @@
 
     .fe-actions .fe-save.primary:hover {
       filter: brightness(1.08)
+    }
+
+    .fe-actions button:disabled {
+      opacity: .45;
+      cursor: not-allowed
+    }
+
+    .fe-actions button:disabled:hover {
+      background: var(--surface);
+      color: var(--dim)
+    }
+
+    .fe-actions .fe-reset:not(:disabled) {
+      color: var(--alert)
+    }
+
+    .fe-actions .fe-reset:not(:disabled):hover {
+      background: var(--alert-soft);
+      border-color: var(--alert);
+      color: var(--alert)
     }
 
     .fe-msg {
@@ -2324,7 +2387,7 @@
 
     .fe-grid {
       display: grid;
-      grid-template-columns: repeat(var(--fe-cols), minmax(18px, 28px));
+      grid-template-columns: repeat(var(--fe-cols), minmax(26px, 38px));
       gap: 2px;
       touch-action: none;
       user-select: none;
@@ -2341,9 +2404,27 @@
       border-radius: 4px;
       background: var(--surface);
       border: 1px dashed var(--line);
-      cursor: crosshair;
+      cursor: not-allowed;
       position: relative;
       transition: background .1s var(--ease)
+    }
+
+    .fe-grid[data-tool="cell"] .fe-cell:not(.cell) {
+      cursor: crosshair
+    }
+
+    .fe-grid[data-tool="seat"] .fe-cell.cell {
+      cursor: pointer
+    }
+
+    .fe-grid[data-tool="erase"] .fe-cell.cell,
+    .fe-grid[data-tool="erase"] .fe-cell.seat {
+      cursor: pointer
+    }
+
+    .fe-grid[data-tool="door"] .fe-cell,
+    .fe-grid[data-tool="window"] .fe-cell {
+      cursor: not-allowed
     }
 
     .fe-cell:hover {
@@ -2355,77 +2436,189 @@
       border: 1px solid var(--line-2)
     }
 
+    .fe-grid[data-rect-mode="add"] .fe-cell.fe-cell-rect-preview {
+      background: var(--accent-soft);
+      border-color: var(--accent)
+    }
+
     .fe-cell.seat::after {
       content: '';
       position: absolute;
-      inset: 22%;
+      inset: 26%;
       background: var(--accent);
-      border-radius: 3px;
-      transform: rotate(45deg)
+      border-radius: 50%;
+      transition: background .1s var(--ease)
+    }
+
+    /* Erase / agent-remove — destructive hover on targets that will be removed */
+    .fe-grid[data-tool="erase"] .fe-cell.seat:hover,
+    .fe-grid[data-tool="seat"] .fe-cell.seat:hover {
+      background: var(--alert-soft);
+      border-color: var(--alert)
+    }
+
+    .fe-grid[data-tool="erase"] .fe-cell.seat:hover::after,
+    .fe-grid[data-tool="seat"] .fe-cell.seat:hover::after {
+      background: var(--alert)
+    }
+
+    .fe-grid[data-tool="erase"] .fe-cell.cell:not(.seat):hover {
+      background: var(--alert-soft);
+      border-color: var(--alert)
+    }
+
+    .fe-grid[data-tool="erase"] .fe-edge.door:hover,
+    .fe-grid[data-tool="erase"] .fe-edge.window:hover {
+      background: var(--alert-soft)
+    }
+
+    .fe-grid[data-tool="erase"] .fe-edge.door:hover::after,
+    .fe-grid[data-tool="erase"] .fe-edge.window:hover::after {
+      background: var(--alert) !important
     }
 
     /* Edge handles — only interactive when a door/window/erase tool is active. */
     .fe-edge {
       position: absolute;
-      pointer-events: none
+      pointer-events: none;
+      z-index: 1
     }
 
     .fe-edge-N {
-      top: -2px;
+      top: -8px;
       left: 0;
       right: 0;
-      height: 4px
+      height: 16px
     }
 
     .fe-edge-S {
-      bottom: -2px;
+      bottom: -8px;
       left: 0;
       right: 0;
-      height: 4px
+      height: 16px
     }
 
     .fe-edge-E {
-      right: -2px;
+      right: -8px;
       top: 0;
       bottom: 0;
-      width: 4px
+      width: 16px
     }
 
     .fe-edge-O {
-      left: -2px;
+      left: -8px;
       top: 0;
       bottom: 0;
-      width: 4px
+      width: 16px
+    }
+
+    .fe-edge::after {
+      content: '';
+      position: absolute;
+      pointer-events: none;
+      border-radius: 2px;
+      opacity: 0
+    }
+
+    .fe-edge-N::after,
+    .fe-edge-S::after {
+      left: 12%;
+      right: 12%;
+      height: 5px;
+      top: 50%;
+      transform: translateY(-50%)
+    }
+
+    .fe-edge-E::after,
+    .fe-edge-O::after {
+      top: 12%;
+      bottom: 12%;
+      width: 5px;
+      left: 50%;
+      transform: translateX(-50%)
     }
 
     .fe-grid[data-tool="door"] .fe-edge.exterior,
-    .fe-grid[data-tool="window"] .fe-edge.exterior,
-    .fe-grid[data-tool="erase"] .fe-edge.exterior {
-      pointer-events: auto;
-      background: rgba(106, 91, 232, .25);
+    .fe-grid[data-tool="window"] .fe-edge.exterior {
+      pointer-events: auto
+    }
+
+    .fe-grid[data-tool="door"] .fe-edge.exterior:not(.door) {
       cursor: pointer
     }
 
-    .fe-grid[data-tool="door"] .fe-edge.exterior:hover,
-    .fe-grid[data-tool="window"] .fe-edge.exterior:hover {
-      background: rgba(106, 91, 232, .6)
+    .fe-grid[data-tool="door"] .fe-edge.exterior.door {
+      cursor: not-allowed
     }
 
-    /* Placed openings are always shown, regardless of the active tool. */
-    .fe-edge.door {
-      background: rgba(80, 80, 88, .6) !important;
-      pointer-events: auto
+    .fe-grid[data-tool="window"] .fe-edge.exterior:not(.window) {
+      cursor: pointer
     }
 
+    .fe-grid[data-tool="window"] .fe-edge.exterior.window {
+      cursor: not-allowed
+    }
+
+    .fe-grid[data-tool="erase"] .fe-edge.door,
+    .fe-grid[data-tool="erase"] .fe-edge.window {
+      pointer-events: auto;
+      cursor: pointer
+    }
+
+    /* Door tool — door-colored placeholders on empty exterior edges */
+    .fe-grid[data-tool="door"] .fe-edge.exterior:not(.window)::after {
+      opacity: 1;
+      background: rgba(80, 80, 88, .55)
+    }
+
+    .fe-grid[data-tool="door"] .fe-edge.exterior:not(.window):hover {
+      background: rgba(80, 80, 88, .1)
+    }
+
+    .fe-grid[data-tool="door"] .fe-edge.exterior:not(.window):hover::after {
+      background: rgba(80, 80, 88, .85)
+    }
+
+    /* Window tool — window-colored placeholders on empty exterior edges */
+    .fe-grid[data-tool="window"] .fe-edge.exterior:not(.door)::after {
+      opacity: 1;
+      background: rgba(95, 120, 155, .55)
+    }
+
+    .fe-grid[data-tool="window"] .fe-edge.exterior:not(.door):hover {
+      background: rgba(95, 120, 155, .1)
+    }
+
+    .fe-grid[data-tool="window"] .fe-edge.exterior:not(.door):hover::after {
+      background: rgba(95, 120, 155, .85)
+    }
+
+    /* Placed openings — always visible with type-specific color */
+    .fe-edge.door::after {
+      opacity: 1 !important;
+      background: rgba(80, 80, 88, .75) !important
+    }
+
+    .fe-edge.window::after {
+      opacity: 1 !important;
+      background: rgba(95, 120, 155, .85) !important
+    }
+
+    .fe-edge.door,
     .fe-edge.window {
-      background: rgba(95, 120, 155, .85) !important;
       pointer-events: auto
+    }
+
+    .fe-grid:not([data-tool="door"]):not([data-tool="window"]):not([data-tool="erase"]) .fe-edge.door,
+    .fe-grid:not([data-tool="door"]):not([data-tool="window"]):not([data-tool="erase"]) .fe-edge.window {
+      cursor: default
     }
 
     .fe-hint {
       margin-top: 12px;
       font-size: 12px;
-      color: var(--faint)
+      color: var(--faint);
+      flex-shrink: 0
     }
 
     .fe-side-title {
@@ -2441,7 +2634,7 @@
       margin-bottom: 10px
     }
 
-    .fe-add {
+    .fe-add-place {
       font-size: 12px;
       padding: 4px 10px;
       border-radius: 7px;
@@ -2451,15 +2644,148 @@
       letter-spacing: 0
     }
 
-    .fe-add:hover {
+    .fe-add-place:hover {
       background: var(--accent-soft);
       border-color: var(--accent)
+    }
+
+    .fe-place-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px
+    }
+
+    .fe-place {
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      overflow: hidden;
+      background: var(--surface)
+    }
+
+    .fe-place.on {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-soft)
+    }
+
+    .fe-place-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--surface-2);
+      cursor: pointer;
+      transition: .12s var(--ease)
+    }
+
+    .fe-place.on .fe-place-header {
+      background: var(--accent-soft)
+    }
+
+    .fe-place-header:hover {
+      background: var(--bg-tint)
+    }
+
+    .fe-place-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px
+    }
+
+    .fe-place-name {
+      font-size: 13px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .fe-place-meta {
+      font-size: 10.5px;
+      color: var(--faint)
+    }
+
+    .fe-place-actions {
+      display: flex;
+      gap: 2px;
+      flex-shrink: 0
+    }
+
+    .fe-place-add-floor,
+    .fe-place-del {
+      font-size: 12px;
+      color: var(--faint);
+      padding: 2px 6px;
+      border-radius: 5px;
+      line-height: 1
+    }
+
+    .fe-place-add-floor:hover {
+      color: var(--accent);
+      background: var(--accent-soft)
+    }
+
+    .fe-place-del:hover:not(:disabled) {
+      color: var(--alert);
+      background: var(--alert-soft)
+    }
+
+    .fe-place-del:disabled {
+      opacity: .3;
+      cursor: default
     }
 
     .fe-floor-list {
       display: flex;
       flex-direction: column;
-      gap: 4px
+      gap: 4px;
+      padding: 6px
+    }
+
+    .fe-floor-list.fe-floor-list-dragging {
+      user-select: none
+    }
+
+    .fe-floor-grab {
+      flex-shrink: 0;
+      width: 18px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 5px;
+      color: var(--faint);
+      cursor: grab;
+      touch-action: none
+    }
+
+    .fe-floor-grab svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor
+    }
+
+    .fe-floor-grab:hover:not(:disabled) {
+      color: var(--dim);
+      background: var(--surface-2)
+    }
+
+    .fe-floor-grab:active:not(:disabled) {
+      cursor: grabbing
+    }
+
+    .fe-floor-grab:disabled {
+      opacity: .25;
+      cursor: default
+    }
+
+    .fe-floor.fe-floor-dragging {
+      opacity: .55
+    }
+
+    .fe-floor.fe-floor-drop-before {
+      box-shadow: inset 0 2px 0 var(--accent)
     }
 
     .fe-floor-thumb {
@@ -2521,11 +2847,24 @@
       color: var(--faint)
     }
 
+    .fe-floor-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex-shrink: 0
+    }
+
+    .fe-floor-clone,
     .fe-floor-del {
       font-size: 11px;
       color: var(--faint);
       padding: 2px 5px;
       border-radius: 5px
+    }
+
+    .fe-floor-clone:hover {
+      color: var(--accent);
+      background: var(--accent-soft)
     }
 
     .fe-floor-del:hover:not(:disabled) {
@@ -2588,7 +2927,20 @@
 
     @media (max-width:1100px) {
       .fe-layout {
-        grid-template-columns: 1fr
+        grid-template-columns: 1fr;
+        grid-template-rows: unset;
+        overflow-y: auto
+      }
+
+      .fe-main,
+      .fe-side {
+        overflow: visible;
+        min-height: auto
+      }
+
+      .fe-main .fe-grid-wrap {
+        flex: none;
+        max-height: min(60vh, 560px)
       }
     }
 

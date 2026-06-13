@@ -5,7 +5,7 @@
  * floors ({ name, cells, cellset, assigned: [{ c, r, ... }] }) and an
  * optional `seatParts(seat, ctx)` callback that returns the SVG fragments
  * for each seat ({ glow?, cube? }). Without a callback, seats render as
- * vacant dashed diamonds (used by the floor editor preview).
+ * vacant dashed ellipses on the isometric floor (used by the floor editor preview).
  */
 
 export const shade = (c, f) => c.map(v => Math.round(v * f));
@@ -119,8 +119,11 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     if (L >= 1) s += `<polygon points="${top}" fill="none" stroke="#E05641" stroke-width="2"/>`;
     return `<g class="seat" data-id="${id}" style="--sc:${rgbc(shade(T, .5))}">${s}${beacon || ''}</g>`;
   };
-  const vacantDiamond = (x, y) => `<g class="seat"><polygon points="${x},${y - TH * .58} ${x + TW * .58},${y} ${x},${y + TH * .58} ${x - TW * .58},${y}" fill="none" stroke="rgba(27,25,36,.22)" stroke-dasharray="3 3"/><title>Lloc lliure</title></g>`;
-  const seatParts = opts.seatParts || ((s, ctx) => ({ cube: vacantDiamond(ctx.x, ctx.y) }));
+  const vacantCircle = (x, y) => {
+    const k = 0.42;
+    return `<g class="seat"><ellipse cx="${x}" cy="${y}" rx="${TW * k}" ry="${TH * k}" fill="none" stroke="rgba(27,25,36,.22)" stroke-dasharray="3 3"/><title>Lloc lliure</title></g>`;
+  };
+  const seatParts = opts.seatParts || ((s, ctx) => ({ cube: vacantCircle(ctx.x, ctx.y) }));
 
   const LABEL_GAP = 28;
   const floorXBounds = floors.map((f) => {
@@ -231,7 +234,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     const seats = f.assigned.slice().sort(sortFn);
     seats.forEach(s => {
       const [xBase, y0] = getPos(s.c, s.r); const x0 = xBase + xShift; const y = y0 + yOff;
-      const parts = seatParts(s, { x: x0, y, TW, TH, minH, maxH, faces, wire, tower, band, mkBeacon, vacantDiamond });
+      const parts = seatParts(s, { x: x0, y, TW, TH, minH, maxH, faces, wire, tower, band, mkBeacon, vacantCircle });
       if (!parts) return;
       if (parts.glow) fGlow += parts.glow;
       if (parts.cube) fCubes += parts.cube;
