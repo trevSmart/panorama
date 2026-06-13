@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "ibm-salesforce-context-local": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "/Users/marcpla/Documents/Projectes/mcp/ibm-salesforce-context/index.js"
+      ],
+      "env": {
+        "DISABLE_ELICITATION": "true",
+        "WORKSPACE_FOLDER_PATHS": "/Users/marcpla/Documents/Projectes/panorama"
+      }
+    }
+  }
+}
