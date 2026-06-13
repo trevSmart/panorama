@@ -6,6 +6,7 @@ import {
   NEIGHBOR,
   exteriorEdges,
   sanitizeOpenings,
+  interiorEdges,
 } from '../src/data/wall-edges.js';
 
 test('EDGES lists the four grid directions', () => {
@@ -59,4 +60,14 @@ test('sanitizeOpenings dedupes per (c,r,edge) keeping the first', () => {
 test('sanitizeOpenings tolerates non-array input', () => {
   assert.deepEqual(sanitizeOpenings(undefined, new Set(['0,0'])), []);
   assert.deepEqual(sanitizeOpenings(null, new Set(['0,0'])), []);
+});
+
+test('interiorEdges returns edges whose neighbour IS a floor cell', () => {
+  const cellset = new Set(['0,0', '1,0']);
+  assert.deepEqual(interiorEdges(0, 0, cellset).sort(), ['E']);
+  assert.deepEqual(interiorEdges(1, 0, cellset).sort(), ['O']);
+});
+
+test('interiorEdges returns empty for an isolated cell', () => {
+  assert.deepEqual(interiorEdges(0, 0, new Set(['0,0'])), []);
 });
