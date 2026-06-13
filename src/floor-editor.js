@@ -1,6 +1,7 @@
 import { baseFloors } from './data/floor-layout.js';
 import { saveCustomFloors, clearCustomFloors, loadCustomRoomDir } from './data/floor-store.js';
 import { buildBuildingSVG } from './building-render.js';
+import { exteriorEdges, sanitizeOpenings } from './data/wall-edges.js';
 
 /**
  * Floor editor workspace panel: top-down 2D grid editing (cells + seats +
@@ -10,22 +11,31 @@ import { buildBuildingSVG } from './building-render.js';
 
 const GRID_C = 24, GRID_R = 16;
 const SEED_BLOCK = 4; // new floors start as a SEED_BLOCK × SEED_BLOCK patch
+const EDGE_TOOLS = ['door', 'window', 'erase'];
 
 const key = (c, r) => `${c},${r}`;
 const parseKey = (k) => k.split(',').map(Number);
+const openingsToMap = (arr) => new Map((arr || []).map((o) => [`${o.c},${o.r},${o.edge}`, o.kind]));
+const openingsToArray = (map) => [...map].map(([k, kind]) => {
+  const [c, r, edge] = k.split(',');
+  return { c: Number(c), r: Number(r), edge, kind };
+});
 
 function toSetFloor(f) {
   return {
     name: f.name,
     cells: new Set(f.cells.map(([c, r]) => key(c, r))),
     seats: new Set(f.seats.map(([c, r]) => key(c, r))),
+    openings: openingsToMap(f.openings),
   };
 }
 function toArrayFloor(f) {
+  const openings = openingsToArray(f.openings);
   return {
     name: f.name,
     cells: [...f.cells].map(parseKey),
     seats: [...f.seats].map(parseKey),
+    openings,
   };
 }
 function loadWorkingFloors() {
@@ -44,7 +54,7 @@ function mountEditor(container) {
   const state = {
     floors: loadWorkingFloors(),
     active: 0,
-    tool: 'cell',          // 'cell' | 'seat' | 'erase'
+    tool: 'cell',          // 'cell' | 'seat' | 'door' | 'window' | 'erase'
     dirty: false,
     previewDir: loadCustomRoomDir(),
     paint: null,           // during drag: { mode: 'add' | 'remove' }
@@ -58,6 +68,8 @@ function mountEditor(container) {
             <div class="fe-tools" role="group" aria-label="Eines">
               <button data-tool="cell" class="on" title="Pinta o esborra cel·les de terra">▦ Cel·les</button>
               <button data-tool="seat" title="Col·loca o treu seients (només sobre cel·les)">▣ Seients</button>
+              <button data-tool="door" title="Col·loca o treu portes a les arestes exteriors">▯ Porta</button>
+              <button data-tool="window" title="Col·loca o treu finestres a les arestes exteriors">⊞ Finestra</button>
               <button data-tool="erase" title="Esborra seients i cel·les">⌫ Esborra</button>
             </div>
             <span class="fe-dirty" hidden>● canvis sense desar</span>
@@ -103,6 +115,12 @@ function mountEditor(container) {
       const d = document.createElement('div');
       d.className = 'fe-cell';
       d.dataset.c = c; d.dataset.r = r;
+      for (const edge of ['N', 'S', 'E', 'O']) {
+        const eEl = document.createElement('div');
+        eEl.className = `fe-edge fe-edge-${edge}`;
+        eEl.dataset.edge = edge;
+        d.appendChild(eEl);
+      }
       gridEl.appendChild(d);
       cellEls.set(key(c, r), d);
     }
@@ -111,8 +129,19 @@ function mountEditor(container) {
     const el = cellEls.get(k);
     if (!el) return;
     const f = state.floors[state.active];
-    el.classList.toggle('cell', f.cells.has(k));
+    const isCell = f.cells.has(k);
+    el.classList.toggle('cell', isCell);
     el.classList.toggle('seat', f.seats.has(k));
+    const [c, r] = parseKey(k);
+    const ext = isCell ? new Set(exteriorEdges(c, r, f.cells)) : new Set();
+    el.querySelectorAll('.fe-edge').forEach((eEl) => {
+      const edge = eEl.dataset.edge;
+      const exterior = ext.has(edge);
+      eEl.classList.toggle('exterior', exterior);
+      const kind = exterior ? f.openings.get(`${c},${r},${edge}`) : undefined;
+      eEl.classList.toggle('door', kind === 'door');
+      eEl.classList.toggle('window', kind === 'window');
+    });
   }
   function renderGrid() {
     cellEls.forEach((_, k) => paintCellEl(k));
@@ -128,6 +157,7 @@ function mountEditor(container) {
         cells: arr.cells,
         cellset: new Set(f.cells),
         assigned: arr.seats.map(([c, r]) => ({ c, r })),
+        openings: arr.openings,
       };
     });
     previewEl.innerHTML = buildBuildingSVG(decorated, state.previewDir, { headroom: 10 });
@@ -150,7 +180,7 @@ function mountEditor(container) {
       name.title = 'Doble clic per reanomenar';
       const meta = document.createElement('span');
       meta.className = 'fe-floor-meta mono';
-      meta.textContent = `${f.cells.size}▦ ${f.seats.size}▣`;
+      meta.textContent = `${f.cells.size}▦ ${f.seats.size}▣ ${f.openings.size}▭`;
       const del = document.createElement('button');
       del.className = 'fe-floor-del';
       del.textContent = '✕';
@@ -201,7 +231,7 @@ function mountEditor(container) {
   container.querySelector('.fe-add').addEventListener('click', () => {
     const cells = new Set();
     for (let r = 0; r < SEED_BLOCK; r++) for (let c = 0; c < SEED_BLOCK; c++) cells.add(key(c, r));
-    state.floors.push({ name: `Planta ${state.floors.length + 1}`, cells, seats: new Set() });
+    state.floors.push({ name: `Planta ${state.floors.length + 1}`, cells, seats: new Set(), openings: new Map() });
     state.active = state.floors.length - 1;
     markDirty();
     renderFloors(); renderGrid(); schedulePreview();
@@ -211,25 +241,56 @@ function mountEditor(container) {
   function applyTool(k, mode) {
     const f = state.floors[state.active];
     let changed = false;
+    let cellsChanged = false;
     if (state.tool === 'cell') {
-      if (mode === 'add') { if (!f.cells.has(k)) { f.cells.add(k); changed = true; } }
+      if (mode === 'add') { if (!f.cells.has(k)) { f.cells.add(k); changed = true; cellsChanged = true; } }
       else if (f.cells.has(k)) {
         f.cells.delete(k);
-        f.seats.delete(k); // orphan seat goes with its cell
-        changed = true;
+        f.seats.delete(k);
+        changed = true; cellsChanged = true;
       }
     } else if (state.tool === 'seat') {
       if (mode === 'add') { if (f.cells.has(k) && !f.seats.has(k)) { f.seats.add(k); changed = true; } }
       else if (f.seats.has(k)) { f.seats.delete(k); changed = true; }
-    } else { // erase
+    } else { // erase (cell/seat part; edge erase handled in pointerdown)
       if (f.seats.has(k)) { f.seats.delete(k); changed = true; }
-      else if (f.cells.has(k)) { f.cells.delete(k); changed = true; }
+      else if (f.cells.has(k)) { f.cells.delete(k); changed = true; cellsChanged = true; }
+    }
+    if (cellsChanged) {
+      const kept = sanitizeOpenings(openingsToArray(f.openings), f.cells);
+      f.openings = openingsToMap(kept);
+      // Only this cell and its 4 orthogonal neighbours can change exterior
+      // edges, so repaint just those rather than the whole grid.
+      const [cc, rr] = parseKey(k);
+      [[cc, rr], [cc, rr - 1], [cc, rr + 1], [cc - 1, rr], [cc + 1, rr]]
+        .forEach(([nc, nr]) => paintCellEl(key(nc, nr)));
     }
     if (changed) {
-      paintCellEl(k);
+      if (!cellsChanged) paintCellEl(k);
       markDirty();
       schedulePreview();
     }
+  }
+  function applyEdgeTool(cellEl, edgeEl) {
+    if (!EDGE_TOOLS.includes(state.tool)) return false;
+    if (!edgeEl.classList.contains('exterior')) return false;
+    const c = Number(cellEl.dataset.c), r = Number(cellEl.dataset.r);
+    const edge = edgeEl.dataset.edge;
+    const f = state.floors[state.active];
+    const k = `${c},${r},${edge}`;
+    const cur = f.openings.get(k);
+    if (state.tool === 'erase') {
+      if (!cur) return false;
+      f.openings.delete(k);
+    } else if (cur === state.tool) {
+      f.openings.delete(k);
+    } else {
+      f.openings.set(k, state.tool);
+    }
+    paintCellEl(`${c},${r}`);
+    markDirty();
+    schedulePreview();
+    return true;
   }
   function cellFromEvent(e) {
     const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.fe-cell');
@@ -237,8 +298,16 @@ function mountEditor(container) {
   }
   gridEl.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
+    const edgeEl = e.target.closest('.fe-edge');
+    if (edgeEl && EDGE_TOOLS.includes(state.tool)) {
+      const cellEl = edgeEl.closest('.fe-cell');
+      if (applyEdgeTool(cellEl, edgeEl)) { e.preventDefault(); return; }
+      if (state.tool !== 'erase') return; // door/window on non-opening edge: nothing else to do
+      // erase with no opening on this edge: fall through to cell/seat erase
+    }
     const k = cellFromEvent(e);
     if (!k) return;
+    if (state.tool === 'door' || state.tool === 'window') return; // these tools only act on edges
     const f = state.floors[state.active];
     let mode = 'add';
     if (state.tool === 'cell') mode = f.cells.has(k) ? 'remove' : 'add';
