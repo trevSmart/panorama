@@ -34,6 +34,19 @@ export function exteriorEdges(c, r, cellset) {
 }
 
 /**
+ * @param {number} c
+ * @param {number} r
+ * @param {Set<string>} cellset  keys "c,r"
+ * @returns {string[]} interior edges of this cell (neighbour in that direction is a floor cell)
+ */
+export function interiorEdges(c, r, cellset) {
+  return EDGES.filter((e) => {
+    const [nc, nr] = NEIGHBOR[e](c, r);
+    return cellset.has(k(nc, nr));
+  });
+}
+
+/**
  * Keep only openings on existing cells whose edge is exterior, with a valid
  * kind, deduped per (c,r,edge).
  * @param {unknown} openings
