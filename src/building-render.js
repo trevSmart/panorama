@@ -64,19 +64,19 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     || computeFloorLayout(floors, dir, gMaxC, gMaxR, { minH, maxH, TH, beaconPad: 24, marginMin: 14, marginBase: 28 }).offsets;
   const getPos =
     dir === 1 ? (c, r) => [(r - c) * TW, (r + c) * TH] :
-    dir === 2 ? (c, r) => [(gMaxR - r - c) * TW, (gMaxR - r + c) * TH] :
-    dir === 3 ? (c, r) => [(r + c - gMaxC) * TW, (r + gMaxC - c) * TH] :
-                (c, r) => [(c - r) * TW, (c + r) * TH];
+      dir === 2 ? (c, r) => [(gMaxR - r - c) * TW, (gMaxR - r + c) * TH] :
+        dir === 3 ? (c, r) => [(r + c - gMaxC) * TW, (r + gMaxC - c) * TH] :
+          (c, r) => [(c - r) * TW, (c + r) * TH];
   const makeRfVis = has =>
     dir === 1 ? (c, r) => !has(c, r + 1) :
-    dir === 2 ? (c, r) => !has(c, r - 1) :
-    dir === 3 ? (c, r) => !has(c, r + 1) :
-                (c, r) => !has(c + 1, r);
+      dir === 2 ? (c, r) => !has(c, r - 1) :
+        dir === 3 ? (c, r) => !has(c, r + 1) :
+          (c, r) => !has(c + 1, r);
   const makeLfVis = has =>
     dir === 1 ? (c, r) => !has(c + 1, r) :
-    dir === 2 ? (c, r) => !has(c + 1, r) :
-    dir === 3 ? (c, r) => !has(c - 1, r) :
-                (c, r) => !has(c, r + 1);
+      dir === 2 ? (c, r) => !has(c + 1, r) :
+        dir === 3 ? (c, r) => !has(c - 1, r) :
+          (c, r) => !has(c, r + 1);
   // Back walls: the two grid edges furthest from the camera (the inverse corner
   // of the perspective). For each, a cell is on the back perimeter when it has
   // no neighbour on that side. The wall panel rises from that ground edge.
@@ -84,27 +84,27 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
   // Back-left edge of a diamond: from top vertex (x,y-TH) to left vertex (x-TW,y).
   const makeBrVis = has =>
     dir === 1 ? (c, r) => !has(c - 1, r) :
-    dir === 2 ? (c, r) => !has(c - 1, r) :
-    dir === 3 ? (c, r) => !has(c + 1, r) :
-                (c, r) => !has(c, r - 1);
+      dir === 2 ? (c, r) => !has(c - 1, r) :
+        dir === 3 ? (c, r) => !has(c + 1, r) :
+          (c, r) => !has(c, r - 1);
   const makeBlVis = has =>
     dir === 1 ? (c, r) => !has(c, r - 1) :
-    dir === 2 ? (c, r) => !has(c, r + 1) :
-    dir === 3 ? (c, r) => !has(c, r - 1) :
-                (c, r) => !has(c - 1, r);
+      dir === 2 ? (c, r) => !has(c, r + 1) :
+        dir === 3 ? (c, r) => !has(c, r - 1) :
+          (c, r) => !has(c - 1, r);
   // Which grid edge (N/S/E/O) each visible rear wall corresponds to, per dir.
   // Inverse of makeBrVis/makeBlVis above.
   const brEdge = dir === 0 ? 'N' : dir === 3 ? 'E' : 'O';
   const blEdge = dir === 0 ? 'O' : dir === 2 ? 'S' : 'N';
   const sortFn =
     dir === 2 ? (a, b) => (a.c - a.r) - (b.c - b.r) || (a.c - b.c) :
-    dir === 3 ? (a, b) => (a.r - a.c) - (b.r - b.c) || (a.r - b.r) :
-                (a, b) => (a.c + a.r) - (b.c + b.r) || (a.c - b.c);
+      dir === 3 ? (a, b) => (a.r - a.c) - (b.r - b.c) || (a.r - b.r) :
+        (a, b) => (a.c + a.r) - (b.c + b.r) || (a.c - b.c);
   let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
   const ext = (x, y) => { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; };
   // Updated per-floor inside the render loop so seat helpers can report how
   // high they actually reach (towers, beacons) and labels can sit just above.
-  let trackTop = () => {};
+  let trackTop = () => { };
   const faces = (x, y, H) => ({ top: `${x},${y - TH - H} ${x + TW},${y - H} ${x},${y + TH - H} ${x - TW},${y - H}`, lf: `${x - TW},${y} ${x},${y + TH} ${x},${y + TH - H} ${x - TW},${y - H}`, rf: `${x},${y + TH} ${x + TW},${y} ${x + TW},${y - H} ${x},${y + TH - H}` });
   const mkBeacon = (x, y, H) => { const by = y - TH - H - 15; trackTop(by - 5); return `<line x1="${x}" y1="${y - TH - H}" x2="${x}" y2="${by + 4}" stroke="#E05641" stroke-width="1.5"/><circle class="beacon" cx="${x}" cy="${by}" r="5" fill="#E05641" stroke="#fff" stroke-width="1.5"/>`; };
   const wire = (x, y, H, stroke, id, vacant, beacon) => { trackTop(y - TH - H); const p = faces(x, y, H); return `<g class="seat" ${id ? `data-id="${id}"` : ''}><polygon points="${p.rf}" fill="none" stroke="${stroke}"/><polygon points="${p.lf}" fill="none" stroke="${stroke}"/><polygon points="${p.top}" fill="rgba(255,255,255,.35)" stroke="${stroke}"/>${vacant ? '<title>Lloc lliure</title>' : ''}${beacon || ''}</g>`; };
@@ -115,9 +115,9 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     if (H <= baseH + capH) { s += band(x, y, 0, H, .86, .86, T, edge); }
     else { s += band(x, y, 0, baseH, .88, .88, T, edge); s += band(x, y, baseH, H - capH, .26, .22, T, ''); s += band(x, y, H - capH, H, .72, .72, T, edge); }
     const top = `${x},${y - TH - H} ${x + TW},${y - H} ${x},${y + TH - H} ${x - TW},${y - H}`;
-    s += `<polygon points="${top}" fill="${rgbc(tint(T, .22), .78)}" stroke="rgba(255,255,255,.5)"/>`;
+    s += `<polygon points="${top}" fill="${rgbc(tint(T, .22), .35)}" stroke="rgba(255,255,255,.5)" stroke-width="1"/>`;
     if (L >= 1) s += `<polygon points="${top}" fill="none" stroke="#E05641" stroke-width="2"/>`;
-    return `<g class="seat" data-id="${id}">${s}${beacon || ''}</g>`;
+    return `<g class="seat" data-id="${id}" style="--sc:${rgbc(shade(T, .5))}">${s}${beacon || ''}</g>`;
   };
   const vacantDiamond = (x, y) => `<g class="seat"><polygon points="${x},${y - TH * .58} ${x + TW * .58},${y} ${x},${y + TH * .58} ${x - TW * .58},${y}" fill="none" stroke="rgba(27,25,36,.22)" stroke-dasharray="3 3"/><title>Lloc lliure</title></g>`;
   const seatParts = opts.seatParts || ((s, ctx) => ({ cube: vacantDiamond(ctx.x, ctx.y) }));
@@ -137,7 +137,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
   const buildingCenterX = (buildingMinX + buildingMaxX) / 2;
   const floorXShifts = floorXBounds.map((b) => (b ? buildingCenterX - (b.minX + b.maxX) / 2 : 0));
 
-  let body = '', labels = '';
+  let allShadows = '', body = '', labels = '';
   floors.forEach((f, i) => {
     if (!f.cells.length) return;
     const yOff = floorOffsets[i]; const has = (c, r) => f.cellset.has(c + ',' + r);
@@ -146,7 +146,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     const xShift = floorXShifts[i] || 0;
     const rfVis = makeRfVis(has); const lfVis = makeLfVis(has);
     const brVis = makeBrVis(has); const blVis = makeBlVis(has);
-    let fWalls = '', fGround = '', fGroundShadow = '', fShadow = '', fGlow = '', fCubes = '';
+    let fWalls = '', fGround = '', fGroundShadow = '', fGlow = '', fCubes = '';
     let fMinX = 1e9, fMaxX = -1e9, fTopY = 1e9;
     const centerSet = new Set(f.cells.map(([c, r]) => {
       const [x, y] = getPos(c, r);
@@ -185,7 +185,8 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
       // Back walls rise from the rear ground edges (top vertex → side vertex),
       // extruded upward by WALL_H. Drawn first so they sit behind everything.
       if (brVis(c, r) && !hasRearCellBeyond(x0, y, TW)) {
-        fWalls += `<polygon points="${x0},${y - TH} ${x0 + TW},${y} ${x0 + TW},${y - WALL_H} ${x0},${y - TH - WALL_H}" fill="rgba(27,25,36,.032)" stroke="rgba(27,25,36,.045)" stroke-width=".5"/>`;
+        const brPts = `${x0},${y - TH} ${x0 + TW},${y} ${x0 + TW},${y - WALL_H} ${x0},${y - TH - WALL_H}`;
+        fWalls += `<polygon points="${brPts}" fill="rgb(247,246,243)"/><polygon points="${brPts}" fill="rgba(27,25,36,.032)" stroke="rgba(27,25,36,.045)" stroke-width=".5"/>`;
         const brKind = openingAt.get(`${c},${r},${brEdge}`);
         if (brKind) {
           fWalls += openingFrame([x0, y - TH], [x0 + TW, y], [x0, y - TH - WALL_H], [x0 + TW, y - WALL_H], brKind);
@@ -194,7 +195,8 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
         ext(x0 + TW, y - TH - WALL_H);
       }
       if (blVis(c, r) && !hasRearCellBeyond(x0, y, -TW)) {
-        fWalls += `<polygon points="${x0},${y - TH} ${x0 - TW},${y} ${x0 - TW},${y - WALL_H} ${x0},${y - TH - WALL_H}" fill="rgba(27,25,36,.052)" stroke="rgba(27,25,36,.045)" stroke-width=".5"/>`;
+        const blPts = `${x0},${y - TH} ${x0 - TW},${y} ${x0 - TW},${y - WALL_H} ${x0},${y - TH - WALL_H}`;
+        fWalls += `<polygon points="${blPts}" fill="rgb(247,246,243)"/><polygon points="${blPts}" fill="rgba(27,25,36,.052)" stroke="rgba(27,25,36,.045)" stroke-width=".5"/>`;
         const blKind = openingAt.get(`${c},${r},${blEdge}`);
         if (blKind) {
           fWalls += openingFrame([x0, y - TH], [x0 - TW, y], [x0, y - TH - WALL_H], [x0 - TW, y - WALL_H], blKind);
@@ -207,13 +209,19 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
       // room's silhouette. Drawn behind the floor with no vertical offset, so
       // the blur halo bleeds out evenly past every edge (front and sides) —
       // a directional nudge would leave the far edge unshaded and the near
-      // edge dark, reading as if the shadow stopped one cell short. The even
-      // halo reads as a floor resting under overhead light, fixing the
-      // otherwise-ambiguous iso depth.
-      fGroundShadow += `<polygon points="${x0},${y - TH} ${x0 + TW},${y} ${x0},${y + TH} ${x0 - TW},${y}"/>`;
-      fGround += `<polygon points="${x0},${y - TH} ${x0 + TW},${y} ${x0},${y + TH} ${x0 - TW},${y}" fill="rgba(247,246,243,.4)" stroke="rgba(27,25,36,.09)"/>`;
-      if (rfVis(c, r)) fGround += `<polygon points="${x0 + TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 + TW},${y + THK}" fill="rgba(27,25,36,.05)"/>`;
-      if (lfVis(c, r)) fGround += `<polygon points="${x0 - TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 - TW},${y + THK}" fill="rgba(27,25,36,.08)"/>`;
+      // edge dark, reading as if the shadow stopped one cell short. Each
+      // diamond is inflated about its own centre by SHADOW_PAD so the silhouette
+      // sits slightly proud of the floor on every side (a deliberate padding,
+      // not just blur spill). The even halo reads as a floor resting under
+      // overhead light, fixing the otherwise-ambiguous iso depth.
+      const SHADOW_PAD = 1.31;
+      const sw = TW * SHADOW_PAD, sh = TH * SHADOW_PAD;
+      fGroundShadow += `<polygon points="${x0},${y - sh} ${x0 + sw},${y} ${x0},${y + sh} ${x0 - sw},${y}"/>`;
+      const cellPts = `${x0},${y - TH} ${x0 + TW},${y} ${x0},${y + TH} ${x0 - TW},${y}`;
+      let cellG = `<polygon points="${cellPts}" fill="rgb(247,246,243)"/><polygon class="ct" points="${cellPts}" fill="rgba(247,246,243,.4)" stroke="rgba(27,25,36,.09)"/>`;
+      if (rfVis(c, r)) cellG += `<polygon points="${x0 + TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 + TW},${y + THK}" fill="rgba(27,25,36,.05)"/>`;
+      if (lfVis(c, r)) cellG += `<polygon points="${x0 - TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 - TW},${y + THK}" fill="rgba(27,25,36,.08)"/>`;
+      fGround += `<g class="iso-cell">${cellG}</g>`;
       ext(x0 - TW, y - TH); ext(x0 + TW, y + TH + THK);
     });
     // Topmost point actually drawn on this floor (slab, or tallest tower/beacon
@@ -223,16 +231,13 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     const seats = f.assigned.slice().sort(sortFn);
     seats.forEach(s => {
       const [xBase, y0] = getPos(s.c, s.r); const x0 = xBase + xShift; const y = y0 + yOff;
-      fShadow += `<ellipse cx="${x0}" cy="${y + 2}" rx="${TW * .86}" ry="${TH * .86}" fill="rgba(27,25,36,.05)" filter="url(#bg)"/>`;
       const parts = seatParts(s, { x: x0, y, TW, TH, minH, maxH, faces, wire, tower, band, mkBeacon, vacantDiamond });
       if (!parts) return;
       if (parts.glow) fGlow += parts.glow;
       if (parts.cube) fCubes += parts.cube;
     });
-    const groundShadow = fGroundShadow
-      ? `<g filter="url(#floordrop)" fill="rgba(27,25,36,.2)">${fGroundShadow}</g>`
-      : '';
-    body += groundShadow + fWalls + fGround + fShadow + fGlow + fCubes;
+    if (fGroundShadow) allShadows += `<g filter="url(#floordrop)" fill="rgba(27,25,36,.1)">${fGroundShadow}</g>`;
+    body += fWalls + fGround + fGlow + fCubes;
     if (showLabels && f.name) {
       const labelY = fContentTop - LABEL_GAP;
       const labelX = (fMinX + fMaxX) / 2;
@@ -241,7 +246,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     }
   });
   const pad = 30, vb = `${minX - pad} ${minY - pad} ${(maxX - minX) + pad * 2} ${(maxY - minY) + pad * 2}`;
-  return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="bg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="9"/></filter><filter id="floordrop" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="16"/></filter></defs><g>${body}</g><g>${labels}</g></svg>`;
+  return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="bg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="9"/></filter><filter id="floordrop" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="16"/></filter></defs><g>${allShadows}${body}</g><g>${labels}</g></svg>`;
 }
 
 function escapeXml(s) {
