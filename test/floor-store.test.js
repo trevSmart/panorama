@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 function oneFloor(name = 'Main room') {
-  return [{ name, cells: [[0, 0], [1, 0]], seats: [[1, 0]], openings: [] }];
+  return [{ name, cells: [[0, 0], [1, 0]], seats: [[1, 0]], openings: [], dividers: [] }];
 }
 
 test('room definition stores sanitized floors and rotation direction together', () => {
@@ -44,7 +44,7 @@ test('room definition stores sanitized floors and rotation direction together', 
     v: 3,
     dir: 2,
     activePlaceId: 'default',
-    places: [{ id: 'default', name: 'Lloc 1', floors: [{ name: 'Main room', cells: [[0, 0], [1, 0]], seats: [[1, 0]], openings: [] }] }],
+    places: [{ id: 'default', name: 'Lloc 1', floors: [{ name: 'Main room', cells: [[0, 0], [1, 0]], seats: [[1, 0]], openings: [], dividers: [] }] }],
   });
 });
 
@@ -142,4 +142,35 @@ test('v2 layouts migrate into a default place', () => {
 
 test('sanitizePlaces requires at least one floor per place', () => {
   assert.equal(sanitizePlaces([{ id: 'x', name: 'Empty', floors: [] }]), null);
+});
+
+test('sanitizeFloors keeps valid dividers, canonicalized and deduped', () => {
+  const floors = sanitizeFloors([
+    {
+      name: 'Room',
+      cells: [[0, 0], [1, 0]],
+      seats: [],
+      openings: [],
+      dividers: [
+        { c: 0, r: 0, edge: 'E' },
+        { c: 1, r: 0, edge: 'O' }, // same wall -> dedup
+        { c: 0, r: 0, edge: 'N' }, // exterior -> drop
+      ],
+    },
+  ]);
+  assert.deepEqual(floors[0].dividers, [{ c: 0, r: 0, edge: 'E' }]);
+});
+
+test('sanitizeFloors defaults missing dividers to an empty array', () => {
+  const floors = sanitizeFloors([{ name: 'Room', cells: [[0, 0]], seats: [] }]);
+  assert.deepEqual(floors[0].dividers, []);
+});
+
+test('saveCustomFloors persists dividers under v3', () => {
+  saveCustomFloors([
+    { name: 'R', cells: [[0, 0], [1, 0]], seats: [], openings: [], dividers: [{ c: 0, r: 0, edge: 'E' }] },
+  ], 0);
+  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+  assert.equal(stored.v, 3);
+  assert.deepEqual(stored.places[0].floors[0].dividers, [{ c: 0, r: 0, edge: 'E' }]);
 });
