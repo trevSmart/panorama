@@ -16,7 +16,7 @@ import { exteriorEdges, interiorEdges, canonicalDivider, sanitizeOpenings, sanit
 
 const GRID_C = 24, GRID_R = 16;
 const SEED_BLOCK = 4; // new floors start as a SEED_BLOCK × SEED_BLOCK patch
-const EDGE_TOOLS = ['door', 'window', 'erase'];
+const EDGE_TOOLS = ['door', 'window', 'divider', 'erase'];
 const UNDO_LIMIT = 10;
 
 const key = (c, r) => `${c},${r}`;
@@ -108,7 +108,7 @@ function mountEditor(container) {
     places: initial.places,
     activePlaceId: initial.activePlaceId,
     active: 0,
-    tool: 'cell',          // 'cell' | 'seat' | 'door' | 'window' | 'erase'
+    tool: 'cell',          // 'cell' | 'seat' | 'door' | 'window' | 'divider' | 'erase'
     dirty: false,
     previewDir: loadCustomRoomDir(),
     paint: null,           // during drag: { mode: 'add' | 'remove' }
@@ -134,6 +134,7 @@ function mountEditor(container) {
               <button data-tool="seat" title="Col·loca o treu agents (només sobre cel·les)"><svg class="fe-tool-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path d="M320 312C386.3 312 440 258.3 440 192C440 125.7 386.3 72 320 72C253.7 72 200 125.7 200 192C200 258.3 253.7 312 320 312zM290.3 368C191.8 368 112 447.8 112 546.3C112 562.7 125.3 576 141.7 576L498.3 576C514.7 576 528 562.7 528 546.3C528 447.8 448.2 368 349.7 368L290.3 368z"/></svg> Agent</button>
               <button data-tool="door" title="Afegeix portes a les arestes exteriors"><svg class="fe-tool-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path d="M384 128L448 128L448 544C448 561.7 462.3 576 480 576L512 576C529.7 576 544 561.7 544 544C544 526.3 529.7 512 512 512L512 128C512 92.7 483.3 64 448 64L352 64L352 64L192 64C156.7 64 128 92.7 128 128L128 512C110.3 512 96 526.3 96 544C96 561.7 110.3 576 128 576L352 576C369.7 576 384 561.7 384 544L384 128zM256 320C256 302.3 270.3 288 288 288C305.7 288 320 302.3 320 320C320 337.7 305.7 352 288 352C270.3 352 256 337.7 256 320z"/></svg> Porta</button>
               <button data-tool="window" title="Afegeix finestres a les arestes exteriors"><svg class="fe-tool-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0 0 21 18v-1.94l-2.69-2.689a1.5 1.5 0 0 0-2.12 0l-.88.879.97.97a.75.75 0 1 1-1.06 1.06l-5.16-5.159a1.5 1.5 0 0 0-2.12 0L3 16.061Zm10.125-7.81a1.125 1.125 0 1 1 2.25 0 1.125 1.125 0 0 1-2.25 0Z" clip-rule="evenodd"/></svg> Finestra</button>
+              <button data-tool="divider" title="Afegeix separadors a les arestes interiors"><svg class="fe-tool-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path d="M288 96C288 78.3 302.3 64 320 64C337.7 64 352 78.3 352 96L352 544C352 561.7 337.7 576 320 576C302.3 576 288 561.7 288 544L288 96z"/></svg> Separador</button>
               <button data-tool="erase" title="Esborra àrea, agents, portes i finestres"><svg class="fe-tool-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path d="M210.5 480L333.5 480L398.8 414.7L225.3 241.2L98.6 367.9L210.6 479.9zM256 544L210.5 544C193.5 544 177.2 537.3 165.2 525.3L49 409C38.1 398.1 32 383.4 32 368C32 352.6 38.1 337.9 49 327L295 81C305.9 70.1 320.6 64 336 64C351.4 64 366.1 70.1 377 81L559 263C569.9 273.9 576 288.6 576 304C576 319.4 569.9 334.1 559 345L424 480L544 480C561.7 480 576 494.3 576 512C576 529.7 561.7 544 544 544L256 544z"/></svg> Esborra</button>
             </div>
             <span class="fe-msg" hidden></span>
