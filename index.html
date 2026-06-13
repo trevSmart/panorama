@@ -2261,6 +2261,64 @@
       transform: rotate(45deg)
     }
 
+    /* Edge handles — only interactive when a door/window/erase tool is active. */
+    .fe-edge {
+      position: absolute;
+      pointer-events: none
+    }
+
+    .fe-edge-N {
+      top: -2px;
+      left: 10%;
+      right: 10%;
+      height: 4px
+    }
+
+    .fe-edge-S {
+      bottom: -2px;
+      left: 10%;
+      right: 10%;
+      height: 4px
+    }
+
+    .fe-edge-E {
+      right: -2px;
+      top: 10%;
+      bottom: 10%;
+      width: 4px
+    }
+
+    .fe-edge-O {
+      left: -2px;
+      top: 10%;
+      bottom: 10%;
+      width: 4px
+    }
+
+    .fe-grid[data-tool="door"] .fe-edge.exterior,
+    .fe-grid[data-tool="window"] .fe-edge.exterior,
+    .fe-grid[data-tool="erase"] .fe-edge.exterior {
+      pointer-events: auto;
+      background: rgba(106, 91, 232, .25);
+      cursor: pointer
+    }
+
+    .fe-grid[data-tool="door"] .fe-edge.exterior:hover,
+    .fe-grid[data-tool="window"] .fe-edge.exterior:hover {
+      background: rgba(106, 91, 232, .6)
+    }
+
+    /* Placed openings are always shown, regardless of the active tool. */
+    .fe-edge.door {
+      background: rgba(60, 40, 26, .85) !important;
+      pointer-events: auto
+    }
+
+    .fe-edge.window {
+      background: rgba(70, 110, 180, .85) !important;
+      pointer-events: auto
+    }
+
     .fe-hint {
       margin-top: 12px;
       font-size: 12px;
