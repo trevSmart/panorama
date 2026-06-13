@@ -687,6 +687,8 @@ function mountEditor(container) {
     if (cellsChanged) {
       const kept = sanitizeOpenings(openingsToArray(f.openings), f.cells);
       f.openings = openingsToMap(kept);
+      const keptDiv = sanitizeDividers(dividersToArray(f.dividers), f.cells);
+      f.dividers = dividersToSet(keptDiv);
       // Only this cell and its 4 orthogonal neighbours can change exterior
       // edges, so repaint just those rather than the whole grid.
       const [cc, rr] = parseKey(k);
@@ -701,10 +703,31 @@ function mountEditor(container) {
   }
   function applyEdgeTool(cellEl, edgeEl) {
     if (!EDGE_TOOLS.includes(state.tool)) return false;
-    if (!edgeEl.classList.contains('exterior')) return false;
     const c = Number(cellEl.dataset.c), r = Number(cellEl.dataset.r);
     const edge = edgeEl.dataset.edge;
     const f = curFloor();
+
+    // Interior edges: divider tool places/removes; erase removes.
+    if (edgeEl.classList.contains('interior') && (state.tool === 'divider' || state.tool === 'erase')) {
+      const canon = canonicalDivider(c, r, edge);
+      const dk = `${canon.c},${canon.r},${canon.edge}`;
+      const has = f.dividers.has(dk);
+      const willChange = state.tool === 'erase' ? has : true; // divider toggles, so it always changes
+      if (!willChange) return false;
+      pushUndo();
+      if (has) f.dividers.delete(dk);
+      else f.dividers.add(dk);
+      // repaint both adjacent cells so the line updates from either side
+      paintCellEl(`${c},${r}`);
+      const nb = { N: [c, r - 1], S: [c, r + 1], E: [c + 1, r], O: [c - 1, r] }[edge];
+      if (nb) paintCellEl(`${nb[0]},${nb[1]}`);
+      syncDirty();
+      schedulePreview();
+      return true;
+    }
+
+    if (!edgeEl.classList.contains('exterior')) return false;
+    if (state.tool === 'divider') return false; // divider only acts on interior edges
     const k = `${c},${r},${edge}`;
     const cur = f.openings.get(k);
     const willChange = state.tool === 'erase' ? !!cur : cur !== state.tool;
@@ -735,7 +758,7 @@ function mountEditor(container) {
     }
     const k = cellFromEvent(e);
     if (!k) return;
-    if (state.tool === 'door' || state.tool === 'window') return; // these tools only act on edges
+    if (state.tool === 'door' || state.tool === 'window' || state.tool === 'divider') return; // these tools only act on edges
     if (state.tool === 'cell') {
       pushUndo();
       const [c, r] = parseKey(k);
