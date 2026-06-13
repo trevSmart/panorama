@@ -262,6 +262,7 @@ function mountEditor(container) {
     el.classList.toggle('seat', f.seats.has(k));
     const [c, r] = parseKey(k);
     const ext = isCell ? new Set(exteriorEdges(c, r, f.cells)) : new Set();
+    const intr = isCell ? new Set(interiorEdges(c, r, f.cells)) : new Set();
     el.querySelectorAll('.fe-edge').forEach((eEl) => {
       const edge = eEl.dataset.edge;
       const exterior = ext.has(edge);
@@ -269,6 +270,11 @@ function mountEditor(container) {
       const kind = exterior ? f.openings.get(`${c},${r},${edge}`) : undefined;
       eEl.classList.toggle('door', kind === 'door');
       eEl.classList.toggle('window', kind === 'window');
+      const interior = intr.has(edge);
+      eEl.classList.toggle('interior', interior);
+      const canon = interior ? canonicalDivider(c, r, edge) : null;
+      const hasDivider = canon ? f.dividers.has(`${canon.c},${canon.r},${canon.edge}`) : false;
+      eEl.classList.toggle('divider', hasDivider);
     });
   }
   function renderGrid() {
