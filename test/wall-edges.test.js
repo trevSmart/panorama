@@ -109,3 +109,12 @@ test('sanitizeDividers drops exterior edges and unknown cells', () => {
 test('sanitizeDividers returns [] for non-array input', () => {
   assert.deepEqual(sanitizeDividers(undefined, new Set(['0,0'])), []);
 });
+
+test('sanitizeDividers dedupes two identical canonical entries', () => {
+  const cellset = new Set(['0,0', '1,0']);
+  const out = sanitizeDividers([
+    { c: 0, r: 0, edge: 'E' },
+    { c: 0, r: 0, edge: 'E' },
+  ], cellset);
+  assert.deepEqual(out, [{ c: 0, r: 0, edge: 'E' }]);
+});
