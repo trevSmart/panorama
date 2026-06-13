@@ -54,12 +54,9 @@ if (isOAuthCallbackPath()) {
   if (provider.subscribe) {
     provider.subscribe(() => {
       const view = globalThis.Panorama?.activeViewType?.();
-      if (view === 'overview') globalThis.updateOverviewMetrics?.();
-      else if (view === 'operations') {
-        globalThis.updateAgents?.();
-        globalThis.updateRoomPanel?.();
-      } else {
+      if (view === 'operations') {
         globalThis.updateOverviewMetrics?.();
+        globalThis.updateAgents?.();
         globalThis.updateRoomPanel?.();
       }
       globalThis.refreshFloors?.();

@@ -1,10 +1,16 @@
 /**
  * Persistence for user-customized floor layouts.
  *
- * Stored shape: { v: 2, dir: 0-3, floors: [{ name, cells: [[c,r]], seats: [[c,r]], openings: [{ c, r, edge, kind }] }] }
+ * Stored shape (v3): {
+ *   v: 3,
+ *   dir: 0-3,
+ *   activePlaceId: string,
+ *   places: [{ id, name, floors: [{ name, cells, seats, openings }] }]
+ * }
+ *
+ * v1/v2 stored a flat `floors` array and migrate into a single default place.
  * Seats must sit on floor cells; openings must sit on an exterior edge of an
- * existing cell. Invalid entries are dropped on load. v1 layouts load with
- * openings: [].
+ * existing cell. Invalid entries are dropped on load.
  */
 import { sanitizeOpenings } from './wall-edges.js';
 
@@ -19,6 +25,10 @@ function validPair(p) {
 
 function sanitizeDir(dir) {
   return Number.isInteger(dir) && dir >= 0 && dir <= 3 ? dir : 0;
+}
+
+export function makePlaceId() {
+  return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
 /**
@@ -59,13 +69,51 @@ export function sanitizeFloors(raw) {
 
 /**
  * @param {unknown} raw
- * @returns {{ dir: number, floors: Array<{ name: string, cells: number[][], seats: number[][], openings: Array<{ c: number, r: number, edge: string, kind: string }> }> }|null}
+ * @returns {Array<{ id: string, name: string, floors: Array<{ name: string, cells: number[][], seats: number[][], openings: Array<{ c: number, r: number, edge: string, kind: string }> }> }>|null}
+ */
+export function sanitizePlaces(raw) {
+  if (!Array.isArray(raw) || !raw.length) return null;
+  const places = [];
+  for (const p of raw) {
+    if (!p || typeof p !== 'object') return null;
+    const floors = sanitizeFloors(p.floors);
+    if (!floors) return null;
+    const id = typeof p.id === 'string' && p.id.trim() ? p.id.trim() : makePlaceId();
+    const name = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : `Lloc ${places.length + 1}`;
+    places.push({ id, name, floors });
+  }
+  return places.length ? places : null;
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {{ v: number, dir: number, activePlaceId: string, places: Array<{ id: string, name: string, floors: Array<{ name: string, cells: number[][], seats: number[][], openings: Array<{ c: number, r: number, edge: string, kind: string }> }> }> }|null}
  */
 export function sanitizeRoomDefinition(raw) {
-  if (!raw || typeof raw !== 'object' || (raw.v !== 1 && raw.v !== 2)) return null;
-  const floors = sanitizeFloors(raw.floors);
-  if (!floors) return null;
-  return { dir: sanitizeDir(raw.dir), floors };
+  if (!raw || typeof raw !== 'object') return null;
+
+  if (raw.v === 3) {
+    const places = sanitizePlaces(raw.places);
+    if (!places) return null;
+    const activePlaceId = typeof raw.activePlaceId === 'string' && places.some((p) => p.id === raw.activePlaceId)
+      ? raw.activePlaceId
+      : places[0].id;
+    return { v: 3, dir: sanitizeDir(raw.dir), places, activePlaceId };
+  }
+
+  if (raw.v === 1 || raw.v === 2) {
+    const floors = sanitizeFloors(raw.floors);
+    if (!floors) return null;
+    const id = 'default';
+    return {
+      v: 3,
+      dir: sanitizeDir(raw.dir),
+      activePlaceId: id,
+      places: [{ id, name: 'Lloc 1', floors }],
+    };
+  }
+
+  return null;
 }
 
 function loadRoomDefinition() {
@@ -74,10 +122,42 @@ function loadRoomDefinition() {
   return sanitizeRoomDefinition(JSON.parse(raw));
 }
 
-/** @returns {Array<{ name: string, cells: number[][], seats: number[][] }>|null} */
+/** @returns {{ v: number, dir: number, activePlaceId: string, places: Array<{ id: string, name: string, floors: Array<{ name: string, cells: number[][], seats: number[][], openings: Array<{ c: number, r: number, edge: string, kind: string }> }> }> }|null} */
+export function loadCustomRoom() {
+  try {
+    return loadRoomDefinition();
+  } catch {
+    return null;
+  }
+}
+
+/** @returns {Array<{ id: string, name: string, floors: Array<{ name: string, cells: number[][], seats: number[][], openings: Array<{ c: number, r: number, edge: string, kind: string }> }> }>|null} */
+export function loadCustomPlaces() {
+  try {
+    return loadRoomDefinition()?.places || null;
+  } catch {
+    return null;
+  }
+}
+
+export function loadActivePlaceId() {
+  try {
+    const room = loadRoomDefinition();
+    if (!room?.places?.length) return null;
+    return room.activePlaceId || room.places[0].id;
+  } catch {
+    return null;
+  }
+}
+
+/** Floors of the active place — used by the team map and runtime views. */
 export function loadCustomFloors() {
   try {
-    return loadRoomDefinition()?.floors || null;
+    const room = loadRoomDefinition();
+    if (!room?.places?.length) return null;
+    const id = room.activePlaceId || room.places[0].id;
+    const place = room.places.find((p) => p.id === id) || room.places[0];
+    return place.floors;
   } catch {
     return null;
   }
@@ -92,13 +172,42 @@ export function loadCustomRoomDir() {
 }
 
 /**
+ * @param {Array<{ id: string, name: string, floors: Array<{ name: string, cells: number[][], seats: number[][], openings: Array<{ c: number, r: number, edge: string, kind: string }> }> }>} places
+ * @param {number} [dir]
+ * @param {string} [activePlaceId]
+ */
+export function saveCustomRoom(places, dir = loadCustomRoomDir(), activePlaceId = loadActivePlaceId()) {
+  const cleanPlaces = sanitizePlaces(places);
+  if (!cleanPlaces) throw new Error('Invalid places');
+  const id = activePlaceId && cleanPlaces.some((p) => p.id === activePlaceId)
+    ? activePlaceId
+    : cleanPlaces[0].id;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    v: 3,
+    dir: sanitizeDir(dir),
+    activePlaceId: id,
+    places: cleanPlaces,
+  }));
+  return { places: cleanPlaces, activePlaceId: id };
+}
+
+/**
+ * Updates floors on the active place; preserves other places.
  * @param {Array<{ name: string, cells: number[][], seats: number[][], openings: Array<{ c: number, r: number, edge: string, kind: string }> }>} floors
  * @param {number} [dir]
  */
 export function saveCustomFloors(floors, dir = loadCustomRoomDir()) {
   const clean = sanitizeFloors(floors);
   if (!clean) throw new Error('Invalid floor layout');
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 2, dir: sanitizeDir(dir), floors: clean }));
+  const room = loadRoomDefinition();
+  if (room?.places?.length) {
+    const activeId = room.activePlaceId || room.places[0].id;
+    const places = room.places.map((p) => (p.id === activeId ? { ...p, floors: clean } : p));
+    saveCustomRoom(places, dir ?? room.dir, activeId);
+    return clean;
+  }
+  const id = 'default';
+  saveCustomRoom([{ id, name: 'Lloc 1', floors: clean }], dir, id);
   return clean;
 }
 
@@ -109,10 +218,18 @@ export function saveCustomFloors(floors, dir = loadCustomRoomDir()) {
 export function saveCustomRoomDir(dir, fallbackFloors) {
   const cleanDir = sanitizeDir(dir);
   const room = loadRoomDefinition();
-  const floors = room?.floors || (fallbackFloors ? sanitizeFloors(fallbackFloors) : null);
-  if (!floors) return null;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 2, dir: cleanDir, floors }));
-  return cleanDir;
+  if (room?.places?.length) {
+    saveCustomRoom(room.places, cleanDir, room.activePlaceId);
+    return cleanDir;
+  }
+  if (fallbackFloors) {
+    const clean = sanitizeFloors(fallbackFloors);
+    if (!clean) return null;
+    const id = 'default';
+    saveCustomRoom([{ id, name: 'Lloc 1', floors: clean }], cleanDir, id);
+    return cleanDir;
+  }
+  return null;
 }
 
 export function clearCustomFloors() {
