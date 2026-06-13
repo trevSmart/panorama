@@ -7,6 +7,7 @@ export function normalizeAgent(agent) {
     id: agent.id,
     name: agent.name || 'Agent',
     role: agent.role || 'Agent · Operations',
+    recordUrl: agent.recordUrl || null,
     status: agent.status || 'offline',
     max: Number(agent.max) || 5,
     used: Number(agent.used) || 0,

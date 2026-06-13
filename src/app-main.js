@@ -4,6 +4,7 @@ import { buildFloorsForAgents } from './data/floor-layout.js';
 import { loadCustomRoomDir, saveCustomRoomDir } from './data/floor-store.js';
 import { buildBuildingSVG, computeFloorLayout, gridExtents, rgbc } from './building-render.js';
 import { registerFloorEditorPanel } from './floor-editor.js';
+import { buildAgentQueueSummaries } from './agent-queue-summary.js';
 import { channelIconTileHtml, channelIconName, sfIconColor, sfIconTileHtml } from './ui/sf-icons.js';
 
 /* ───────── Helpers ───────── */
@@ -14,34 +15,6 @@ const fmtLogin = m => { const h = Math.floor(m / 60); return h > 0 ? h + 'h ' + 
 const initials = n => n.split(' ').map(w => w[0]).slice(0, 2).join('');
 const avGrad = i => [['#6a5be8', '#a98aff'], ['#15a06a', '#3ac88a'], ['#e05641', '#ff8f6b'], ['#d9981f', '#f2c14e'], ['#a98aff', '#e05641']][i % 5];
 const qById = id => QUEUES.find(q => q.id === id);
-function agentQueueEntries(agent, live) {
-  const seen = new Set();
-  /** @type {Array<{ id?: string, name: string, color?: string }>} */
-  const entries = [];
-  const add = (q) => {
-    if (!q?.name) return;
-    const key = q.id || q.name;
-    if (seen.has(key)) return;
-    seen.add(key);
-    entries.push(q);
-  };
-  for (const id of [...new Set(agent.queues || [])]) {
-    add(qById(id));
-  }
-  if (live && Array.isArray(agent.work)) {
-    for (const id of [...new Set(agent.work.map((w) => w.queueId).filter(Boolean))]) {
-      add(qById(id));
-    }
-    for (const name of [...new Set(agent.work.map((w) => w.queue).filter(Boolean))]) {
-      add(QUEUES.find((q) => q.name === name) || { name, color: 'var(--accent)' });
-    }
-  }
-  return entries;
-}
-function queuePillHTML(q) {
-  const color = q.color || 'var(--accent)';
-  return `<span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: color })}<span style="color:${color}">${q.name}</span></span>`;
-}
 const avatarImgOnError = "this.parentElement.classList.add('av--initials');this.remove()";
 function agentAvatarInnerHTML(a) {
   const src = agentPhotoSrc(a);
@@ -299,12 +272,13 @@ const Scene3D = {
     const ptrs = new Map(); let moved = 0, lastPinch = 0, hoverId = null;
     const rect = () => renderer.domElement.getBoundingClientRect();
     const pan = (dx, dy) => { const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0), up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1), k = radius * 0.0016; target.addScaledVector(right, -dx * k); target.addScaledVector(up, dy * k); };
+    let tipAgentId = null;
     const hover = e => {
       const rc = rect(); ndc.x = ((e.clientX - rc.left) / rc.width) * 2 - 1; ndc.y = -((e.clientY - rc.top) / rc.height) * 2 + 1; ray.setFromCamera(ndc, camera); const hit = ray.intersectObjects(pickables, false);
       if (hit.length) {
         const a = AGENTS.find(x => x.id === hit[0].object.userData.id); hoverId = a ? a.id : null;
-        if (a) { tip.innerHTML = agentMapTipHTML(a); tip.style.display = 'block'; tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; el.style.cursor = 'pointer'; }
-      } else { hoverId = null; tip.style.display = 'none'; el.style.cursor = 'grab'; }
+        if (a) { if (a.id !== tipAgentId) { tip.innerHTML = agentMapTipHTML(a); tipAgentId = a.id; } tip.style.display = 'block'; tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; el.style.cursor = 'pointer'; }
+      } else { hoverId = null; tipAgentId = null; tip.style.display = 'none'; el.style.cursor = 'grab'; }
     };
     const onDown = e => { if (el.setPointerCapture) el.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button, shift: e.shiftKey }); moved = 0; };
     const onMove = e => {
@@ -450,7 +424,35 @@ function openDrawer(id) {
   const items = live ? [] : Array.from({ length: Math.max(1, a.used || 1) }).map(() => { const w = { ...pick(WORK_KINDS) }; if (w.t === 'Cas #') w.t = 'Cas #' + rnd(48210, 48999); return { ...w, age: rnd(1, 28) }; });
   const stB = [{ l: 0, w: 22, c: '#B7B3C0', t: 'Desconnectat' }, { l: 22, w: 30, c: '#15A06A', t: 'Online' }, { l: 52, w: 14, c: '#D9981F', t: 'Pausa' }, { l: 66, w: 34, c: '#15A06A', t: 'Online' }];
   const wkB = [{ l: 24, w: 16, c: '#6A5BE8', t: 'Cas' }, { l: 42, w: 9, c: '#E05641', t: '☎' }, { l: 55, w: 11, c: '#15A06A', t: '💬' }, { l: 70, w: 18, c: '#6A5BE8', t: '☎' }, { l: 90, w: 8, c: '#D9981F', t: '' }];
-  const queuePills = agentQueueEntries(a, live).map(queuePillHTML).join('');
+  const queueSummaries = buildAgentQueueSummaries(live ? a : { ...a, work: items }, QUEUES);
+  const assignedQueueWorkItemHTML = (w) => {
+    const label = live ? (w.label || 'Work item') : (w.t || 'Work item');
+    const channelKey = w.channelKey || 'cas';
+    const detail = live
+      ? (w.subject || CH_LBL[channelKey] || w.channel || 'Work item')
+      : (CH_LBL[channelKey] || 'Work item');
+    const age = live ? w.ageMin : w.age;
+    return `<div class="assigned-queue-work-item">
+      <div class="assigned-queue-work-icon">${channelIconTileHtml(channelKey, { size: 24 })}</div>
+      <div class="assigned-queue-work-copy"><div class="assigned-queue-work-title">${esc(label)}</div><div class="assigned-queue-work-meta">${esc(detail)}</div></div>
+      ${age == null ? '' : `<span class="assigned-queue-work-age mono">${age}m</span>`}
+    </div>`;
+  };
+  const assignedQueuesHTML = queueSummaries.length
+    ? `<div class="assigned-queue-list">${queueSummaries.map((q) => `<div class="assigned-queue-row">
+      <div class="assigned-queue-head">
+        <div class="assigned-queue-name">${sfIconTileHtml('queue', { size: 20, bg: q.color })}<span>${esc(q.name)}</span></div>
+        <span class="assigned-queue-count">${q.workItems.length} active</span>
+      </div>
+      <div class="assigned-queue-work">${q.workItems.length ? q.workItems.map(assignedQueueWorkItemHTML).join('') : '<div class="assigned-queue-empty">No active work in this queue</div>'}</div>
+    </div>`).join('')}</div>`
+    : '<span style="color:var(--faint)">No queue membership data</span>';
+  const salesforceLink = a.recordUrl
+    ? `<a class="dr-action-link" href="${esc(a.recordUrl)}" target="_blank" rel="noopener noreferrer" aria-label="View ${esc(a.name)} in Salesforce">View in Salesforce</a>`
+    : '';
+  const drawerActions = live
+    ? salesforceLink
+    : `${salesforceLink}<button class="primary">⚑ Atendre bandera</button><button>↪ Reassignar</button><button>≋ Canviar cues</button><button>✦ Canviar skills</button>`;
   const timelineSection = live
     ? ''
     : `<section><h4>Timeline — últimes 3 h</h4>
@@ -474,14 +476,14 @@ function openDrawer(id) {
       <div class="dr-id"><div class="ring ${a.status === 'busy' ? 'breathe' : ''}" style="--st:${st.c};width:58px;height:58px">${ringSVG(a.used, a.max, st.c, 58)}${agentRingFaceHTML(a)}</div>
         <div><div class="nm">${a.name}</div><div class="rl">${a.role}</div><div class="status-pill" style="color:${st.c};background:color-mix(in srgb,${st.c} 12%,transparent)"><i style="background:${st.c}"></i>${st.lbl}</div></div></div>
     </div>
-    <div class="dr-actions">${live ? '<p style="color:var(--faint);font-size:13px">Supervisor actions are not available yet.</p>' : '<button class="primary">⚑ Atendre bandera</button><button>↪ Reassignar</button><button>≋ Canviar cues</button><button>✦ Canviar skills</button>'}</div>
+    <div class="dr-actions">${drawerActions}</div>
     <div class="dr-body">
       <section><h4>Resum d'activitat</h4><div class="stat-grid">
         <div class="s"><div class="v" style="color:${st.c}">${a.used}/${a.max}</div><div class="k">Capacitat</div></div>
         <div class="s"><div class="v">${a.status === 'offline' ? '—' : fmtLogin(a.loginMin)}</div><div class="k">Loguejat</div></div>
         ${live ? '' : `<div class="s"><div class="v">${a.lastAccept == null ? '—' : a.lastAccept + 'm'}</div><div class="k">Última feina</div></div>`}
       </div></section>
-      <section><h4>Cues assignades</h4><div style="display:flex;gap:7px;flex-wrap:wrap">${queuePills || '<span style="color:var(--faint)">No queue membership data</span>'}</div></section>
+      <section><h4>Assigned queues</h4>${assignedQueuesHTML}</section>
       ${timelineSection}
       ${workSection}
     </div>`;
@@ -647,15 +649,16 @@ function attachSeats(root) {
   if (!canvas || canvas.dataset.seatsBound) return;
   canvas.dataset.seatsBound = '1';
   const tip = document.getElementById('roomTip');
+  let tipSeatAgentId = null;
   canvas.addEventListener('mousemove', e => {
     const g = e.target.closest('.seat[data-id]');
-    if (!g) return;
+    if (!g) { tipSeatAgentId = null; return; }
     const a = AGENTS.find(x => x.id === g.dataset.id);
-    if (!a) return;
-    tip.innerHTML = agentMapTipHTML(a);
+    if (!a) { tipSeatAgentId = null; return; }
+    if (a.id !== tipSeatAgentId) { tip.innerHTML = agentMapTipHTML(a); tipSeatAgentId = a.id; }
     tip.style.display = 'block'; tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px';
   });
-  canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; tipSeatAgentId = null; });
   canvas.addEventListener('click', e => {
     const g = e.target.closest('.seat[data-id]');
     if (!g) return;

@@ -169,11 +169,29 @@ function mountEditor(container) {
   }
 
   /* ── floor list ── */
+  function makeFloorThumb(f) {
+    const arr = toArrayFloor(f);
+    const decorated = [{
+      name: arr.name,
+      cells: arr.cells,
+      cellset: new Set(f.cells),
+      assigned: arr.seats.map(([c, r]) => ({ c, r })),
+      openings: arr.openings,
+    }];
+    const thumb = document.createElement('div');
+    thumb.className = 'fe-floor-thumb';
+    thumb.innerHTML = buildBuildingSVG(decorated, state.previewDir, { headroom: 4, showLabels: false });
+    return thumb;
+  }
+
   function renderFloors() {
     listEl.innerHTML = '';
     state.floors.forEach((f, i) => {
       const row = document.createElement('div');
       row.className = 'fe-floor' + (i === state.active ? ' on' : '');
+      const thumb = makeFloorThumb(f);
+      const info = document.createElement('div');
+      info.className = 'fe-floor-info';
       const name = document.createElement('span');
       name.className = 'fe-floor-name';
       name.textContent = f.name;
@@ -181,12 +199,13 @@ function mountEditor(container) {
       const meta = document.createElement('span');
       meta.className = 'fe-floor-meta mono';
       meta.textContent = `${f.cells.size}▦ ${f.seats.size}▣ ${f.openings.size}▭`;
+      info.append(name, meta);
       const del = document.createElement('button');
       del.className = 'fe-floor-del';
       del.textContent = '✕';
       del.title = 'Elimina la planta';
       del.disabled = state.floors.length <= 1;
-      row.append(name, meta, del);
+      row.append(thumb, info, del);
       row.addEventListener('click', () => {
         if (state.active === i) return;
         state.active = i;

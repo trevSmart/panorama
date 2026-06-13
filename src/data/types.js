@@ -16,6 +16,7 @@
  * @property {string} id
  * @property {string} name
  * @property {string} [role]
+ * @property {string|null} [recordUrl]
  * @property {PresenceStatus} status
  * @property {number} max
  * @property {number} used
