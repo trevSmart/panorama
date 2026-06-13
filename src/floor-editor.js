@@ -292,6 +292,7 @@ function mountEditor(container) {
         cellset: new Set(f.cells),
         assigned: arr.seats.map(([c, r]) => ({ c, r })),
         openings: arr.openings,
+        dividers: arr.dividers,
       };
     });
     previewEl.innerHTML = buildBuildingSVG(decorated, state.previewDir, { headroom: 10 });
@@ -311,6 +312,7 @@ function mountEditor(container) {
       cellset: new Set(f.cells),
       assigned: arr.seats.map(([c, r]) => ({ c, r })),
       openings: arr.openings,
+      dividers: arr.dividers,
     }];
     const thumb = document.createElement('div');
     thumb.className = 'fe-floor-thumb';
