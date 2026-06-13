@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparativa pistes de profunditat</title>
+<style>
+  body { margin: 0; background: #f2f1ee; font-family: Inter, system-ui, sans-serif; color: #1b1924; padding: 32px; }
+  h1 { font-size: 16px; letter-spacing: 1px; text-transform: uppercase; color: #6b6878; font-weight: 600; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; margin-top: 24px; }
+  .card { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 8px 28px rgba(27,25,36,.06); width: 360px; }
+  .card h2 { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #8a8796; font-weight: 600; margin: 0 0 4px; }
+  .card p { font-size: 12px; color: #9c98a6; margin: 0 0 12px; line-height: 1.4; }
+  .stage { width: 100%; aspect-ratio: 1 / 1; }
+  .stage svg { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<h1>Comparativa — pistes de profunditat</h1>
+<div class="row" id="row"></div>
+
+<script type="module">
+import { buildBuildingSVG } from '../src/building-render.js';
+
+// Una sola planta rectangular 8×5, plena de cel·les (sense seients assignats:
+// es renderitzen com a diamants buits, igual que la previsualització de l'editor).
+const C = 8, R = 5;
+const cells = [];
+for (let c = 0; c < C; c++) for (let r = 0; r < R; r++) cells.push([c, r]);
+const baseFloor = () => ({
+  name: 'Planta exemple',
+  cells: cells.map(p => p.slice()),
+  cellset: new Set(cells.map(([c, r]) => c + ',' + r)),
+  assigned: [],
+});
+
+const dir = 0;
+
+// --- Variant A: cap canvi (estat actual) ---
+function variantNone() {
+  return buildBuildingSVG([baseFloor()], dir, { showLabels: false });
+}
+
+// --- Variant B: gradient de profunditat sobre el terra ---
+// Injectem un <linearGradient> i un rect/overlay clipat a la silueta del terra.
+// Com que buildBuildingSVG no exposa hooks per això, ho fem post-render:
+// reaprofitem les polygons del terra com a màscara i hi posem un gradient a sobre.
+function variantFloorGradient(reinforceWalls) {
+  let svg = buildBuildingSVG([baseFloor()], dir, { showLabels: false });
+  // Extreure els polígons del terra (els que tenen el fill clar del ground).
+  const groundFill = 'fill="rgba(247,246,243,.4)"';
+  const groundPolys = [...svg.matchAll(/<polygon points="([^"]+)" fill="rgba\(247,246,243,\.4\)"[^>]*\/>/g)]
+    .map(m => m[1]);
+  // Bounding box del viewBox per orientar el gradient (fons = a dalt, y menor).
+  const vb = svg.match(/viewBox="([^"]+)"/)[1].split(' ').map(Number);
+  const [vx, vy, vw, vh] = vb;
+  const clip = groundPolys.map(p => `<polygon points="${p}"/>`).join('');
+  // Gradient vertical: fosc a dalt (fons), transparent a baix (davant).
+  const grad = `
+    <defs>
+      <clipPath id="floorclip">${clip}</clipPath>
+      <linearGradient id="depthgrad" x1="0" y1="${vy}" x2="0" y2="${vy + vh}" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="rgba(27,25,36,.16)"/>
+        <stop offset=".55" stop-color="rgba(27,25,36,.04)"/>
+        <stop offset="1" stop-color="rgba(27,25,36,0)"/>
+      </linearGradient>
+    </defs>
+    <rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="url(#depthgrad)" clip-path="url(#floorclip)"/>`;
+  // Inserir l'overlay just després del grup del body (sobre el terra, sota labels).
+  svg = svg.replace('<g>' + '', '<g>'); // no-op anchor
+  // Posem el gradient abans del tancament del primer </g> dels cossos:
+  svg = svg.replace(/(<g>.*?)(<\/g><g>)/s, (_, body, tail) => body + grad + tail);
+
+  if (reinforceWalls) {
+    // Reforçar les parets del fons: pujar opacitat dels fills molt subtils.
+    svg = svg
+      .replace(/fill="rgba\(27,25,36,\.032\)"/g, 'fill="rgba(27,25,36,.07)"')
+      .replace(/fill="rgba\(27,25,36,\.052\)"/g, 'fill="rgba(27,25,36,.11)"')
+      .replace(/stroke="rgba\(27,25,36,\.045\)"/g, 'stroke="rgba(27,25,36,.1)"');
+  }
+  return svg;
+}
+
+// --- Variant C: ombra projectada amb la forma del terra ---
+// Una còpia difuminada de cada diamant del terra, desplaçada avall, agrupada
+// sota un blur fort: els diamants es fonen en una sola taca amb la silueta de
+// la sala. Va darrere del terra (sota tot el body).
+function variantFloorShadow() {
+  let svg = buildBuildingSVG([baseFloor()], dir, { showLabels: false });
+  const groundPolys = [...svg.matchAll(/<polygon points="([^"]+)" fill="rgba\(247,246,243,\.4\)"[^>]*\/>/g)]
+    .map(m => m[1]);
+  const DY = 10; // desplaçament cap avall (px)
+  const shifted = groundPolys.map(p => {
+    const pts = p.split(' ').map(pair => {
+      const [x, y] = pair.split(',').map(Number);
+      return `${x},${y + DY}`;
+    }).join(' ');
+    return `<polygon points="${pts}"/>`;
+  }).join('');
+  const shadow = `
+    <defs><filter id="floordrop" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="11"/></filter></defs>
+    <g filter="url(#floordrop)" fill="rgba(27,25,36,.16)">${shifted}</g>`;
+  svg = svg.replace(/(<svg[^>]*>)(<defs>.*?<\/defs>)?(<g>)/s, (m, open, defs, g) => open + (defs || '') + g + shadow);
+  return svg;
+}
+
+const variants = [
+  ['Actual', 'Estat actual, sense pista de profunditat. Aquí és on apareix l\'efecte Necker.', variantNone()],
+  ['Gradient al terra', 'Ombra que fosqueja el terra cap al fons.', variantFloorGradient(false)],
+  ['Gradient al terra + parets', 'Gradient + parets posteriors reforçades.', variantFloorGradient(true)],
+  ['Ombra amb forma del terra', 'Ombra difuminada amb la silueta de la sala, desplaçada avall.', variantFloorShadow()],
+];
+
+const row = document.getElementById('row');
+for (const [title, desc, svg] of variants) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<h2>${title}</h2><p>${desc}</p><div class="stage">${svg}</div>`;
+  row.appendChild(card);
+}
+</script>
+</body>
+</html>

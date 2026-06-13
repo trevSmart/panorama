@@ -351,6 +351,16 @@
       const tab = e.target.closest('.ws-tab[data-action="activate"]');
       if (!tab || e.target.closest('.ws-tab-close') || e.button !== 0) return;
 
+      const allTabs = [...this.tabBarEl.querySelectorAll('.ws-tab[data-action="activate"]')];
+      const dragIndex = allTabs.indexOf(tab);
+      // snapshot midpoints of all OTHER tabs in their natural positions
+      const tabMidpoints = allTabs
+        .filter((t) => t !== tab)
+        .map((t) => {
+          const r = t.getBoundingClientRect();
+          return r.left + r.width / 2;
+        });
+
       this._dragState = {
         id: tab.dataset.id,
         tab,
@@ -358,7 +368,9 @@
         startY: e.clientY,
         active: false,
         pointerId: e.pointerId,
-        dropIndex: this.panels.findIndex((p) => p.id === tab.dataset.id),
+        dropIndex: dragIndex,
+        tabMidpoints,
+        originalIndex: dragIndex,
       };
 
       document.addEventListener('pointermove', this._onTabPointerMove);
@@ -379,8 +391,27 @@
         this.tabBarEl.classList.add('is-reordering');
       }
 
-      drag.dropIndex = this._dropIndexAt(e.clientX);
-      this._paintDropIndicator(drag.dropIndex, drag.id);
+      const newIndex = this._dropIndexAt(e.clientX, drag.tabMidpoints);
+      if (newIndex !== drag.dropIndex) {
+        drag.dropIndex = newIndex;
+        this._moveDomTabTo(drag.tab, newIndex);
+      }
+    }
+
+    _moveDomTabTo(tab, toIndex) {
+      const tabs = [...this.tabBarEl.querySelectorAll('.ws-tab[data-action="activate"]')];
+      const currentIndex = tabs.indexOf(tab);
+      if (currentIndex === toIndex) return;
+
+      // find the reference node to insert before
+      const refTab = tabs[toIndex] ?? null;
+      if (refTab && refTab !== tab) {
+        this.tabBarEl.insertBefore(tab, refTab);
+      } else if (!refTab) {
+        // insert after the last ws-tab (before the add button if any)
+        const addBtn = this.tabBarEl.querySelector('.ws-tab-add');
+        this.tabBarEl.insertBefore(tab, addBtn ?? null);
+      }
     }
 
     _onTabPointerUp(e) {
@@ -392,46 +423,26 @@
       document.removeEventListener('pointercancel', this._onTabPointerUp);
 
       if (drag.active) {
-        this.movePanel(drag.id, drag.dropIndex);
+        // sync the data model to match the DOM order we've built during drag
+        const tabs = [...this.tabBarEl.querySelectorAll('.ws-tab[data-action="activate"]')];
+        const newOrder = tabs.map((t) => t.dataset.id);
+        this.panels.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+        this._persist();
+        this._emit('reorder', this.panels.find((p) => p.id === drag.id));
         this._suppressClick = true;
       }
 
       drag.tab.classList.remove('is-dragging');
       this.tabBarEl.classList.remove('is-reordering');
-      this._clearDropIndicator();
       this._dragState = null;
     }
 
-    _dropIndexAt(clientX) {
-      const tabs = [...this.tabBarEl.querySelectorAll('.ws-tab[data-action="activate"]')];
-      if (!tabs.length) return 0;
-
-      for (let i = 0; i < tabs.length; i++) {
-        const rect = tabs[i].getBoundingClientRect();
-        if (clientX < rect.left + rect.width / 2) return i;
+    _dropIndexAt(clientX, midpoints) {
+      // midpoints: sorted array of center-X of every tab except the dragged one
+      for (let i = 0; i < midpoints.length; i++) {
+        if (clientX < midpoints[i]) return i;
       }
-      return tabs.length;
-    }
-
-    _paintDropIndicator(dropIndex, dragId) {
-      const tabs = [...this.tabBarEl.querySelectorAll('.ws-tab[data-action="activate"]')];
-      tabs.forEach((tab, i) => {
-        tab.classList.remove('drop-before', 'drop-after');
-        if (tab.dataset.id === dragId) return;
-        if (i === dropIndex) tab.classList.add('drop-before');
-      });
-
-      if (dropIndex >= tabs.length && tabs.length) {
-        const last = tabs[tabs.length - 1];
-        if (last.dataset.id !== dragId) last.classList.add('drop-after');
-        else if (tabs.length > 1) tabs[tabs.length - 2].classList.add('drop-after');
-      }
-    }
-
-    _clearDropIndicator() {
-      this.tabBarEl.querySelectorAll('.ws-tab').forEach((tab) => {
-        tab.classList.remove('drop-before', 'drop-after');
-      });
+      return midpoints.length;
     }
 
     _normalizePanelPins() {

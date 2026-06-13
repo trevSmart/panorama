@@ -157,6 +157,26 @@ test('an opening on a non-visible edge is not drawn', () => {
   assert.doesNotMatch(svg, /class="opening/);
 });
 
+test('openings draw on each dir\'s rear edges and not on front edges', () => {
+  const REAR = { 0: ['N', 'O'], 1: ['O', 'N'], 2: ['O', 'S'], 3: ['E', 'N'] };
+  const ALL = ['N', 'S', 'E', 'O'];
+  for (const dir of [0, 1, 2, 3]) {
+    const rear = REAR[dir];
+    for (const edge of ALL) {
+      const floor = {
+        name: 'Cell',
+        cells: [[0, 0]],
+        cellset: new Set(['0,0']),
+        assigned: [],
+        openings: [{ c: 0, r: 0, edge, kind: 'window' }],
+      };
+      const svg = buildBuildingSVG([floor], dir, { showLabels: false });
+      const drawn = /class="opening/.test(svg);
+      assert.equal(drawn, rear.includes(edge), `dir ${dir} edge ${edge}`);
+    }
+  }
+});
+
 test('rendering without openings field is tolerated', () => {
   const floor = {
     name: 'Cell',

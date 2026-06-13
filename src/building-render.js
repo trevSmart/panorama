@@ -95,7 +95,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
   // Which grid edge (N/S/E/O) each visible rear wall corresponds to, per dir.
   // Inverse of makeBrVis/makeBlVis above.
   const brEdge = dir === 0 ? 'N' : dir === 3 ? 'E' : 'O';
-  const blEdge = dir === 0 ? 'O' : dir === 1 ? 'E' : dir === 2 ? 'S' : 'N';
+  const blEdge = dir === 0 ? 'O' : dir === 2 ? 'S' : 'N';
   const sortFn =
     dir === 2 ? (a, b) => (a.c - a.r) - (b.c - b.r) || (a.c - b.c) :
     dir === 3 ? (a, b) => (a.r - a.c) - (b.r - b.c) || (a.r - b.r) :
@@ -202,13 +202,15 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
         if (y - TH - WALL_H < fTopY) fTopY = y - TH - WALL_H;
         ext(x0 - TW, y - TH - WALL_H);
       }
-      // Depth-anchor shadow: a copy of each ground diamond, nudged down and
-      // blurred as a group, so the per-cell diamonds melt into one soft patch
-      // that traces the room's silhouette. Sits behind the floor; the blur
-      // halo peeking past the front edges reads as a floor resting under
-      // overhead light, which fixes the otherwise-ambiguous iso depth.
-      const SHADOW_DY = 10;
-      fGroundShadow += `<polygon points="${x0},${y - TH + SHADOW_DY} ${x0 + TW},${y + SHADOW_DY} ${x0},${y + TH + SHADOW_DY} ${x0 - TW},${y + SHADOW_DY}"/>`;
+      // Depth-anchor shadow: a copy of each ground diamond, blurred as a group
+      // so the per-cell diamonds melt into one soft patch that traces the
+      // room's silhouette. Drawn behind the floor with no vertical offset, so
+      // the blur halo bleeds out evenly past every edge (front and sides) —
+      // a directional nudge would leave the far edge unshaded and the near
+      // edge dark, reading as if the shadow stopped one cell short. The even
+      // halo reads as a floor resting under overhead light, fixing the
+      // otherwise-ambiguous iso depth.
+      fGroundShadow += `<polygon points="${x0},${y - TH} ${x0 + TW},${y} ${x0},${y + TH} ${x0 - TW},${y}"/>`;
       fGround += `<polygon points="${x0},${y - TH} ${x0 + TW},${y} ${x0},${y + TH} ${x0 - TW},${y}" fill="rgba(247,246,243,.4)" stroke="rgba(27,25,36,.09)"/>`;
       if (rfVis(c, r)) fGround += `<polygon points="${x0 + TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 + TW},${y + THK}" fill="rgba(27,25,36,.05)"/>`;
       if (lfVis(c, r)) fGround += `<polygon points="${x0 - TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 - TW},${y + THK}" fill="rgba(27,25,36,.08)"/>`;
@@ -228,7 +230,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
       if (parts.cube) fCubes += parts.cube;
     });
     const groundShadow = fGroundShadow
-      ? `<g filter="url(#floordrop)" fill="rgba(27,25,36,.16)">${fGroundShadow}</g>`
+      ? `<g filter="url(#floordrop)" fill="rgba(27,25,36,.2)">${fGroundShadow}</g>`
       : '';
     body += groundShadow + fWalls + fGround + fShadow + fGlow + fCubes;
     if (showLabels && f.name) {
@@ -239,7 +241,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     }
   });
   const pad = 30, vb = `${minX - pad} ${minY - pad} ${(maxX - minX) + pad * 2} ${(maxY - minY) + pad * 2}`;
-  return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="bg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="9"/></filter><filter id="floordrop" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="11"/></filter></defs><g>${body}</g><g>${labels}</g></svg>`;
+  return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="bg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="9"/></filter><filter id="floordrop" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="16"/></filter></defs><g>${body}</g><g>${labels}</g></svg>`;
 }
 
 function escapeXml(s) {
