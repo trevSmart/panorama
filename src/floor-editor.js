@@ -344,6 +344,7 @@ function mountEditor(container) {
       cells: seedFloorCells(),
       seats: new Set(),
       openings: new Map(),
+      dividers: new Set(),
     });
     state.activePlaceId = place.id;
     state.active = place.floors.length - 1;
@@ -603,6 +604,7 @@ function mountEditor(container) {
         cells: seedFloorCells(),
         seats: new Set(),
         openings: new Map(),
+        dividers: new Set(),
       }],
     });
     state.activePlaceId = id;
