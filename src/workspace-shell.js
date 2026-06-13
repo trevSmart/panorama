@@ -240,11 +240,12 @@
       this._teardownAll();
       this.panels = snapshot.panels.map((p) => ({
         id: p.id,
-        viewType: p.viewType,
-        label: p.label,
+        viewType: p.viewType === 'overview' ? 'operations' : p.viewType,
+        label: p.viewType === 'overview' && p.label === 'Overview' ? 'Operations' : p.label,
         config: { ...(p.config || {}) },
-        pinned: Boolean(p.pinned),
+        pinned: Boolean(p.pinned) || p.viewType === 'overview',
       }));
+      this._dedupeOperationsPanels();
       this._normalizePanelPins();
 
       const active = this.panels.find((p) => p.id === snapshot.activeId);
@@ -445,12 +446,22 @@
       return midpoints.length;
     }
 
+    _dedupeOperationsPanels() {
+      let seen = false;
+      this.panels = this.panels.filter((p) => {
+        if (p.viewType !== 'operations') return true;
+        if (seen) return false;
+        seen = true;
+        return true;
+      });
+    }
+
     _normalizePanelPins() {
-      let overviewKept = false;
+      let operationsKept = false;
       this.panels.forEach((p) => {
-        if (p.viewType !== 'overview') return;
-        if (!overviewKept) {
-          overviewKept = true;
+        if (p.viewType !== 'operations') return;
+        if (!operationsKept) {
+          operationsKept = true;
           p.pinned = true;
         } else {
           p.pinned = false;
@@ -548,7 +559,7 @@
       if (saved && adapter.load(saved)) return;
       const defaults = opts.defaults?.length
         ? opts.defaults
-        : [{ viewType: 'overview', pinned: true }];
+        : [{ viewType: 'operations', pinned: true }];
       defaults.forEach((d) => adapter.open(d));
     },
 
@@ -595,7 +606,7 @@
         /* ignore */
       }
       adapter._teardownAll();
-      (defaults || [{ viewType: 'overview', pinned: true }]).forEach((d) => adapter.open(d));
+      (defaults || [{ viewType: 'operations', pinned: true }]).forEach((d) => adapter.open(d));
     },
 
     /** Adapter kind — useful when swapping implementations later. */

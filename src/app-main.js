@@ -103,7 +103,7 @@ function verdictHTML(h) {
   else { const al = h.pillars.filter(p => p.state === 'alert'); dot = 'alert'; title = al.length === 1 ? 'Una cosa necessita la teva atenció.' : 'Hi ha coses per atendre.'; sub = 'Mira ' + al.map(p => p.lbl.toLowerCase()).join(' i ') + '. Toca per anar directe al detall.'; }
   return `<span class="vdot ${dot}"></span><div><h1>${title}</h1><div class="vsub">${sub}</div><div class="vmeta"><span class="live"><i></i>en directe</span><span>·</span><span><b class="mono">${h.online}</b> agents online</span><span>·</span><span><b class="mono">${QUEUES.length}</b> cues actives</span><span>·</span><span>actualitzat ara mateix</span></div></div>`;
 }
-function pillarsHTML(h) { return h.pillars.map(p => `<button class="pillar ${p.state !== 'ok' ? 'attn ' + p.state : ''}" onclick="Panorama.open('operations', { anchor: '${p.view}' })"><span class="arrow">→</span><div class="pl">${p.lbl}</div><div class="pv${String(p.val).includes(' ') ? ' long' : ''}">${p.val}</div><div class="ps"><i style="background:var(--${p.state})"></i><span>${p.msg[p.state]}</span></div></button>`).join(''); }
+function pillarsHTML(h) { return h.pillars.map(p => `<button class="pillar ${p.state !== 'ok' ? 'attn ' + p.state : ''}" onclick="Panorama.scrollTo('${p.view}')"><span class="arrow">→</span><div class="pl">${p.lbl}</div><div class="pv${String(p.val).includes(' ') ? ' long' : ''}">${p.val}</div><div class="ps"><i style="background:var(--${p.state})"></i><span>${p.msg[p.state]}</span></div></button>`).join(''); }
 function roomStats() { let occ = 0, hot = 0; FLOORS.forEach(f => f.assigned.forEach(s => { const a = s.agent; if (a && a.status !== 'offline') { occ++; const L = a.max ? a.used / a.max : 0; if (L >= .8) hot++; } })); return { occ, hot }; }
 function statsHTML(s) { return `<b class="mono">${s.occ}</b> ocupats · <b class="mono" style="color:${s.hot ? 'var(--alert)' : 'var(--ink)'}">${s.hot}</b> punts calents`; }
 function legendHTML() { return `<div class="lg-group"><div class="lt">Equips</div><div class="lg-list">${Object.entries(TEAM_COLOR).map(([t, c]) => `<div class="li"><i style="width:11px;height:11px;border-radius:3px;background:${rgbc(c)}"></i>${t}</div>`).join('')}</div></div>`; }
@@ -154,9 +154,14 @@ function updateOverviewMetrics() {
   const verdict = root?.querySelector('.verdict');
   if (verdict) verdict.innerHTML = verdictHTML(h);
 }
+function scrollToAnchor(anchor) {
+  const root = activePanelEl();
+  const el = root?.querySelector('#sec-' + anchor);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 function runBuildingAnimation(ts) {
   buildingAnimFrame = requestAnimationFrame(runBuildingAnimation);
-  if (!isView('overview') && !isView('operations')) return;
+  if (!isView('operations')) return;
   if (!activePanelEl()?.querySelector('.room-canvas')) return;
   const dt = animLastTs ? Math.min(ts - animLastTs, 50) : 16;
   animLastTs = ts;
@@ -168,23 +173,43 @@ function startBuildingAnimation() {
   if (!buildingAnimFrame) runBuildingAnimation();
 }
 
-function renderOverview(container) {
+function renderDetail(container) {
   const h = health();
-  const room = roomStageHTML(false);
+  const c = { all: AGENTS.length }; Object.keys(STATUS).forEach(s => c[s] = AGENTS.filter(a => a.status === s).length);
+  const room = roomStageHTML(true);
   container.innerHTML = `
-    <div class="ov">
-      <div class="hello">${greet()}.</div>
-      <div class="verdict">${verdictHTML(h)}</div>
-      <div class="pillars">${pillarsHTML(h)}</div>
-      ${room.html}
+    <div class="view view-ops">
+      <header class="ops-summary">
+        <div class="hello">${greet()}.</div>
+        <div class="verdict">${verdictHTML(h)}</div>
+        <div class="pillars">${pillarsHTML(h)}</div>
+      </header>
+      <div class="ops-layout">
+        <aside class="ops-room">${room.html}</aside>
+        <div class="ops-data">
+          <section id="sec-queues">
+            <div class="sec-title">${sfIconTileHtml('queue', { size: 20 })} Cues <span class="cnt">${QUEUES.length}</span></div>
+            <div class="qgrid">${queueState.map(queueCard).join('')}</div>
+          </section>
+          <section id="sec-agents">
+            <div class="sec-title">${sfIconTileHtml('user', { size: 20 })} Agents <span class="cnt">${AGENTS.length}</span></div>
+            <div class="toolbar"><div class="chips">
+              <button class="chip ${filter.status === 'all' ? 'on' : ''}" data-st="all">Tots <b class="mono">${c.all}</b></button>
+              <button class="chip ${filter.status === 'online' ? 'on' : ''}" data-st="online"><i style="background:var(--ok)"></i>Online ${c.online}</button>
+              <button class="chip ${filter.status === 'busy' ? 'on' : ''}" data-st="busy"><i style="background:var(--alert)"></i>Ocupat ${c.busy}</button>
+              <button class="chip ${filter.status === 'away' ? 'on' : ''}" data-st="away"><i style="background:var(--watch)"></i>Absent ${c.away}</button>
+            </div></div>
+            <div class="grid" id="agentGrid">${agentGridHTML()}</div>
+          </section>
+        </div>
+      </div>
     </div>`;
   attachSeats(container);
+  container.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { filter.status = b.dataset.st; updateAgents(); });
+  container.querySelectorAll('#agentGrid .card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
   startBuildingAnimation();
 }
-function updateOverview() {
-  updateOverviewMetrics();
-  updateRoomPanel();
-}
+
 /** Rebuild FLOORS from the persisted layout and re-render every building view. */
 function refreshFloors() {
   globalThis.FLOORS = buildFloorsForAgents(globalThis.AGENTS || []);
@@ -194,8 +219,7 @@ function refreshFloors() {
   PanoramaWorkspace.listPanels().forEach(p => {
     const el = document.querySelector(`[data-panel-id="${p.id}"]`);
     if (!el) return;
-    if (p.viewType === 'overview') renderOverview(el);
-    else if (p.viewType === 'operations') renderDetail(el);
+    if (p.viewType === 'operations') renderDetail(el);
   });
 }
 
@@ -374,35 +398,6 @@ function updateAgents() {
   grid.querySelectorAll('.card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
   root.querySelectorAll('[data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === filter.status));
 }
-function renderDetail(container) {
-  const c = { all: AGENTS.length }; Object.keys(STATUS).forEach(s => c[s] = AGENTS.filter(a => a.status === s).length);
-  const room = roomStageHTML(true);
-  container.innerHTML = `
-    <div class="view view-ops">
-      <div class="ops-layout">
-        <aside class="ops-room">${room.html}</aside>
-        <div class="ops-data">
-          <section id="sec-queues">
-            <div class="sec-title">${sfIconTileHtml('queue', { size: 20 })} Cues <span class="cnt">${QUEUES.length}</span></div>
-            <div class="qgrid">${queueState.map(queueCard).join('')}</div>
-          </section>
-          <section id="sec-agents">
-            <div class="sec-title">${sfIconTileHtml('user', { size: 20 })} Agents <span class="cnt">${AGENTS.length}</span></div>
-            <div class="toolbar"><div class="chips">
-              <button class="chip ${filter.status === 'all' ? 'on' : ''}" data-st="all">Tots <b class="mono">${c.all}</b></button>
-              <button class="chip ${filter.status === 'online' ? 'on' : ''}" data-st="online"><i style="background:var(--ok)"></i>Online ${c.online}</button>
-              <button class="chip ${filter.status === 'busy' ? 'on' : ''}" data-st="busy"><i style="background:var(--alert)"></i>Ocupat ${c.busy}</button>
-              <button class="chip ${filter.status === 'away' ? 'on' : ''}" data-st="away"><i style="background:var(--watch)"></i>Absent ${c.away}</button>
-            </div></div>
-            <div class="grid" id="agentGrid">${agentGridHTML()}</div>
-          </section>
-        </div>
-      </div>
-    </div>`;
-  attachSeats(container);
-  container.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { filter.status = b.dataset.st; updateAgents(); });
-  container.querySelectorAll('#agentGrid .card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
-}
 
 /* ───────── Queues view ───────── */
 function pColor(p) { return p < .5 ? 'var(--ok)' : p < .8 ? 'var(--watch)' : 'var(--alert)'; }
@@ -577,7 +572,10 @@ function setBuildDir(d) {
     buildDir = d;
     saveCustomRoomDir(buildDir, FLOORS);
     fixedFloorLayout.offsets = null;
-    if (isView('overview')) updateOverview(); else updateRoomPanel();
+    if (isView('operations')) {
+      updateOverviewMetrics();
+      updateRoomPanel();
+    }
     return;
   }
   dirAnimating = true;
@@ -632,7 +630,7 @@ function buildBuilding(dir) {
     floorOffsets,
     seatParts(s, ctx) {
       const a = s.agent; const { x, y, TW, TH } = ctx;
-      if (!a) return { cube: ctx.vacantDiamond(x, y) };
+      if (!a) return { cube: ctx.vacantCircle(x, y) };
       const T = TEAM_COLOR[teamOf(a)] || [140, 140, 150];
       if (a.status === 'offline') return { cube: ctx.wire(x, y, 10, 'rgba(27,25,36,.18)', a.id, false, a.flag ? ctx.mkBeacon(x, y, 10) : '') };
       const L = a.max ? a.used / a.max : 0; occupied++; if (L >= .8) hot++;
@@ -668,29 +666,17 @@ function attachSeats(root) {
 }
 
 /* ───────── Workspace shell ───────── */
-const LEGACY_VIEW_MAP = { detail: 'operations' };
-
-PanoramaWorkspace.registerPanelType({
-  viewType: 'overview',
-  defaultLabel: 'Overview',
-  mount(container) { renderOverview(container); },
-  activate() { startBuildingAnimation(); },
-  deactivate() { Scene3D.dispose(); },
-});
+const LEGACY_VIEW_MAP = { detail: 'operations', overview: 'operations' };
 
 PanoramaWorkspace.registerPanelType({
   viewType: 'operations',
   defaultLabel: 'Operations',
   mount(container) { renderDetail(container); },
   activate(container, config) {
-    if (config.anchor) {
-      requestAnimationFrame(() => {
-        const el = container.querySelector('#sec-' + config.anchor);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    }
+    if (config.anchor) scrollToAnchor(config.anchor);
     startBuildingAnimation();
   },
+  deactivate() { Scene3D.dispose(); },
 });
 
 PanoramaWorkspace.registerPanelType({
@@ -709,6 +695,7 @@ registerFloorEditorPanel();
 
 const Panorama = {
   open(viewType, opts = {}) {
+    viewType = LEGACY_VIEW_MAP[viewType] || viewType;
     const config = { ...(opts.config || {}) };
     if (opts.anchor) config.anchor = opts.anchor;
     const descriptor = {
@@ -717,14 +704,21 @@ const Panorama = {
       config,
       pinned: opts.pinned,
     };
-    return opts.newTab
+    const id = opts.newTab
       ? PanoramaWorkspace.open(descriptor)
       : PanoramaWorkspace.openOrFocus(descriptor);
+    if (opts.anchor && isView(viewType)) {
+      requestAnimationFrame(() => scrollToAnchor(opts.anchor));
+    }
+    return id;
+  },
+  scrollTo(anchor) {
+    scrollToAnchor(anchor);
   },
   home() {
-    const overview = PanoramaWorkspace.listPanels().find((p) => p.viewType === 'overview');
-    if (overview) PanoramaWorkspace.activate(overview.id);
-    else PanoramaWorkspace.open({ viewType: 'overview', pinned: true });
+    const ops = PanoramaWorkspace.listPanels().find((p) => p.viewType === 'operations');
+    if (ops) PanoramaWorkspace.activate(ops.id);
+    else PanoramaWorkspace.open({ viewType: 'operations', pinned: true });
   },
   activeViewType() { return PanoramaWorkspace.activeViewType(); },
   activePanelEl() {
@@ -739,7 +733,7 @@ PanoramaWorkspace.init({
   tabBarEl: document.getElementById('wsTabs'),
   stageEl: document.getElementById('wsStage'),
   catalogEl: document.getElementById('wsCatalog'),
-  defaults: [{ id: 'p-overview', viewType: 'overview', label: 'Overview', pinned: true }],
+  defaults: [{ id: 'p-operations', viewType: 'operations', label: 'Operations', pinned: true }],
 });
 
 PanoramaWorkspace.onChange((event, panel) => {

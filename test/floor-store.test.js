@@ -5,8 +5,10 @@ import {
   loadCustomFloors,
   loadCustomRoomDir,
   sanitizeFloors,
+  sanitizePlaces,
   sanitizeRoomDefinition,
   saveCustomFloors,
+  saveCustomRoom,
   saveCustomRoomDir,
 } from '../src/data/floor-store.js';
 
@@ -39,8 +41,10 @@ test('room definition stores sanitized floors and rotation direction together', 
   });
 
   assert.deepEqual(clean, {
+    v: 3,
     dir: 2,
-    floors: [{ name: 'Main room', cells: [[0, 0], [1, 0]], seats: [[1, 0]], openings: [] }],
+    activePlaceId: 'default',
+    places: [{ id: 'default', name: 'Lloc 1', floors: [{ name: 'Main room', cells: [[0, 0], [1, 0]], seats: [[1, 0]], openings: [] }] }],
   });
 });
 
@@ -57,8 +61,9 @@ test('saving room rotation updates the persisted room definition without droppin
   assert.deepEqual(loadCustomFloors(), oneFloor());
 
   const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+  assert.equal(stored.v, 3);
   assert.equal(stored.dir, 1);
-  assert.deepEqual(stored.floors, oneFloor());
+  assert.deepEqual(stored.places[0].floors, oneFloor());
 });
 
 test('saving room rotation can create a room definition from current floors', () => {
@@ -92,7 +97,7 @@ test('sanitizeFloors defaults missing openings to an empty array', () => {
 test('room definition accepts both v1 and v2', () => {
   const v1 = sanitizeRoomDefinition({ v: 1, dir: 0, floors: oneFloor() });
   assert.ok(v1);
-  assert.deepEqual(v1.floors[0].openings, []);
+  assert.deepEqual(v1.places[0].floors[0].openings, []);
 
   const v2 = sanitizeRoomDefinition({
     v: 2,
@@ -100,14 +105,41 @@ test('room definition accepts both v1 and v2', () => {
     floors: [{ name: 'R', cells: [[0, 0]], seats: [], openings: [{ c: 0, r: 0, edge: 'N', kind: 'window' }] }],
   });
   assert.equal(v2.dir, 1);
-  assert.deepEqual(v2.floors[0].openings, [{ c: 0, r: 0, edge: 'N', kind: 'window' }]);
+  assert.deepEqual(v2.places[0].floors[0].openings, [{ c: 0, r: 0, edge: 'N', kind: 'window' }]);
 });
 
-test('saveCustomFloors persists openings under v2', () => {
+test('saveCustomFloors persists openings under v3', () => {
   saveCustomFloors([
     { name: 'R', cells: [[0, 0], [1, 0]], seats: [], openings: [{ c: 0, r: 0, edge: 'N', kind: 'door' }] },
   ], 0);
   const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-  assert.equal(stored.v, 2);
-  assert.deepEqual(stored.floors[0].openings, [{ c: 0, r: 0, edge: 'N', kind: 'door' }]);
+  assert.equal(stored.v, 3);
+  assert.deepEqual(stored.places[0].floors[0].openings, [{ c: 0, r: 0, edge: 'N', kind: 'door' }]);
+});
+
+test('saveCustomRoom persists multiple places', () => {
+  saveCustomRoom([
+    { id: 'a', name: 'North', floors: oneFloor('North floor') },
+    { id: 'b', name: 'South', floors: oneFloor('South floor') },
+  ], 2, 'b');
+  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+  assert.equal(stored.v, 3);
+  assert.equal(stored.activePlaceId, 'b');
+  assert.equal(stored.places.length, 2);
+  assert.deepEqual(loadCustomFloors(), oneFloor('South floor'));
+});
+
+test('v2 layouts migrate into a default place', () => {
+  const clean = sanitizeRoomDefinition({
+    v: 2,
+    dir: 1,
+    floors: oneFloor('Legacy'),
+  });
+  assert.equal(clean.v, 3);
+  assert.equal(clean.places.length, 1);
+  assert.deepEqual(clean.places[0].floors, oneFloor('Legacy'));
+});
+
+test('sanitizePlaces requires at least one floor per place', () => {
+  assert.equal(sanitizePlaces([{ id: 'x', name: 'Empty', floors: [] }]), null);
 });

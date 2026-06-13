@@ -1,4 +1,4 @@
-import { loadCustomFloors } from './floor-store.js';
+import { loadCustomPlaces, loadActivePlaceId } from './floor-store.js';
 
 export const TEAM_COLOR = {
   Atenció: [106, 91, 232],
@@ -34,9 +34,22 @@ function floorPrimera() {
   return { name: 'Primera planta · L', cells, seats };
 }
 
+/** Built-in default: one place with two sample floors. */
+export function defaultPlaces() {
+  return [{ id: 'default', name: 'Lloc 1', floors: [floorBaixa(), floorPrimera()] }];
+}
+
 /** Custom layout from the floor editor if present, otherwise the built-in design. */
+export function basePlaces() {
+  return loadCustomPlaces() || defaultPlaces();
+}
+
+/** Floors of the active place — used by the team map. */
 export function baseFloors() {
-  return loadCustomFloors() || [floorBaixa(), floorPrimera()];
+  const places = basePlaces();
+  const activeId = loadActivePlaceId() || places[0].id;
+  const place = places.find((p) => p.id === activeId) || places[0];
+  return place.floors;
 }
 
 /**
