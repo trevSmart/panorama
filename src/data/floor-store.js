@@ -5,14 +5,16 @@
  *   v: 3,
  *   dir: 0-3,
  *   activePlaceId: string,
- *   places: [{ id, name, floors: [{ name, cells, seats, openings }] }]
+ *   places: [{ id, name, floors: [{ name, cells, seats, openings, dividers }] }]
  * }
  *
  * v1/v2 stored a flat `floors` array and migrate into a single default place.
  * Seats must sit on floor cells; openings must sit on an exterior edge of an
- * existing cell. Invalid entries are dropped on load.
+ * existing cell; dividers must sit on an interior edge between two existing
+ * cells, stored in canonical form (E/S only). Invalid entries are dropped on
+ * load.
  */
-import { sanitizeOpenings } from './wall-edges.js';
+import { sanitizeOpenings, sanitizeDividers } from './wall-edges.js';
 
 // Storage slot id; the document's own schema version lives in the JSON `v` field.
 const STORAGE_KEY = 'panorama.customFloors.v1';
@@ -62,7 +64,8 @@ export function sanitizeFloors(raw) {
     const name = typeof f.name === 'string' && f.name.trim() ? f.name.trim() : `Planta ${floors.length + 1}`;
     const cellset = new Set(cells.map(([cc, rr]) => `${cc},${rr}`));
     const openings = sanitizeOpenings(f.openings, cellset);
-    floors.push({ name, cells, seats, openings });
+    const dividers = sanitizeDividers(f.dividers, cellset);
+    floors.push({ name, cells, seats, openings, dividers });
   }
   return floors;
 }
