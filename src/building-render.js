@@ -174,7 +174,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
       const vHi = kind === 'door' ? 0.62 : 0.7;
       const bl = lerp(g0, t0, vLo), tl = lerp(g0, t0, vHi);
       const br = lerp(g1, t1, vLo), tr = lerp(g1, t1, vHi);
-      const fill = kind === 'door' ? 'rgba(110,110,115,.55)' : 'rgba(120,140,170,.35)';
+      const fill = kind === 'door' ? 'rgba(110,110,115,.32)' : 'rgba(120,140,170,.35)';
       const stroke = kind === 'door' ? 'rgba(80,80,88,.18)' : 'rgba(95,120,155,.18)';
       return `<polygon class="opening opening-${kind}" points="${bl[0]},${bl[1]} ${br[0]},${br[1]} ${tr[0]},${tr[1]} ${tl[0]},${tl[1]}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
     };
