@@ -50,7 +50,7 @@ export function computeFloorLayout(floors, dir, gMaxC, gMaxR, opts) {
 const EMPTY_SVG = '<svg viewBox="0 0 480 240" xmlns="http://www.w3.org/2000/svg"><text x="240" y="120" text-anchor="middle" fill="#9C98A6" font-size="14" font-family="Inter,sans-serif">Team map unavailable</text></svg>';
 
 /**
- * @param {Array<{ name: string, cells: number[][], cellset: Set<string>, assigned: Array<{ c: number, r: number }> }>} floors
+ * @param {Array<{ name: string, cells: number[][], cellset: Set<string>, assigned: Array<{ c: number, r: number }>, openings?: Array<{ c: number, r: number, edge: string, kind: string }>, dividers?: Array<{ c: number, r: number, edge: string }> }>} floors
  * @param {number} dir 0-3 camera direction
  * @param {{ floorOffsets?: number[], seatParts?: Function, showLabels?: boolean }} [opts]
  * @returns {string} SVG markup
@@ -146,6 +146,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     const yOff = floorOffsets[i]; const has = (c, r) => f.cellset.has(c + ',' + r);
     const openingAt = new Map(); // "c,r,edge" → kind
     (f.openings || []).forEach((o) => openingAt.set(`${o.c},${o.r},${o.edge}`, o.kind));
+    const floorDividers = f.dividers || [];
     const xShift = floorXShifts[i] || 0;
     const rfVis = makeRfVis(has); const lfVis = makeLfVis(has);
     const brVis = makeBrVis(has); const blVis = makeBlVis(has);
@@ -181,6 +182,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
       const stroke = kind === 'door' ? 'rgba(80,80,88,.18)' : 'rgba(95,120,155,.18)';
       return `<polygon class="opening opening-${kind}" points="${bl[0]},${bl[1]} ${br[0]},${br[1]} ${tr[0]},${tr[1]} ${tl[0]},${tl[1]}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
     };
+    const DIV_H = 14; // low interior-divider wall height in screen px (well below WALL_H)
     f.cells.forEach(([c, r]) => {
       const [xBase, y0] = getPos(c, r); const x0 = xBase + xShift; const y = y0 + yOff;
       fMinX = Math.min(fMinX, x0 - TW); fMaxX = Math.max(fMaxX, x0 + TW);
@@ -225,6 +227,19 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
       if (rfVis(c, r)) cellG += `<polygon points="${x0 + TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 + TW},${y + THK}" fill="rgba(27,25,36,.05)"/>`;
       if (lfVis(c, r)) cellG += `<polygon points="${x0 - TW},${y} ${x0},${y + TH} ${x0},${y + TH + THK} ${x0 - TW},${y + THK}" fill="rgba(27,25,36,.08)"/>`;
       fGround += `<g class="iso-cell">${cellG}</g>`;
+      floorDividers.forEach((d) => {
+        if (d.c !== c || d.r !== r) return; // draw once, from the canonical owner cell
+        const [nc, nr] = d.edge === 'E' ? [c + 1, r] : [c, r + 1];
+        const [axB, ayB] = getPos(c, r); const ax = axB + xShift, ay = ayB + yOff;
+        const [bxB, byB] = getPos(nc, nr); const bx = bxB + xShift, by = byB + yOff;
+        const mx = (ax + bx) / 2, my = (ay + by) / 2;
+        const dvx = bx - ax, dvy = by - ay;
+        const px = -dvy * (TW / TH) / 2, py = dvx * (TH / TW) / 2;
+        const g0 = [mx + px, my + py], g1 = [mx - px, my - py];
+        const t0 = [g0[0], g0[1] - DIV_H], t1 = [g1[0], g1[1] - DIV_H];
+        const teal = 'rgba(47,158,143,';
+        fGround += `<polygon points="${g0[0]},${g0[1]} ${g1[0]},${g1[1]} ${t1[0]},${t1[1]} ${t0[0]},${t0[1]}" fill="${teal}.30)" stroke="${teal}.75)" stroke-width="1.2"/>`;
+      });
       ext(x0 - TW, y - TH); ext(x0 + TW, y + TH + THK);
     });
     // Topmost point actually drawn on this floor (slab, or tallest tower/beacon
