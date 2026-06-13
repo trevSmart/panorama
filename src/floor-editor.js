@@ -6,7 +6,7 @@ import {
   makePlaceId,
 } from './data/floor-store.js';
 import { buildBuildingSVG } from './building-render.js';
-import { exteriorEdges, sanitizeOpenings } from './data/wall-edges.js';
+import { exteriorEdges, interiorEdges, canonicalDivider, sanitizeOpenings, sanitizeDividers } from './data/wall-edges.js';
 
 /**
  * Floor editor workspace panel: top-down 2D grid editing (cells + seats +
@@ -26,6 +26,11 @@ const openingsToArray = (map) => [...map].map(([k, kind]) => {
   const [c, r, edge] = k.split(',');
   return { c: Number(c), r: Number(r), edge, kind };
 });
+const dividersToSet = (arr) => new Set((arr || []).map((d) => `${d.c},${d.r},${d.edge}`));
+const dividersToArray = (set) => [...set].map((kk) => {
+  const [c, r, edge] = kk.split(',');
+  return { c: Number(c), r: Number(r), edge };
+});
 
 function toSetFloor(f) {
   return {
@@ -33,15 +38,18 @@ function toSetFloor(f) {
     cells: new Set(f.cells.map(([c, r]) => key(c, r))),
     seats: new Set(f.seats.map(([c, r]) => key(c, r))),
     openings: openingsToMap(f.openings),
+    dividers: dividersToSet(f.dividers),
   };
 }
 function toArrayFloor(f) {
   const openings = openingsToArray(f.openings);
+  const dividers = dividersToArray(f.dividers);
   return {
     name: f.name,
     cells: [...f.cells].map(parseKey),
     seats: [...f.seats].map(parseKey),
     openings,
+    dividers,
   };
 }
 function cloneFloor(f) {
@@ -50,6 +58,7 @@ function cloneFloor(f) {
     cells: new Set(f.cells),
     seats: new Set(f.seats),
     openings: new Map(f.openings),
+    dividers: new Set(f.dividers),
   };
 }
 function duplicateFloorName(name, floors) {
