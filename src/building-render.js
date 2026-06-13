@@ -167,15 +167,15 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     // isometric perspective. No hole is cut.
     const openingFrame = (p0, p1, p0t, p1t, kind) => {
       const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-      const wIn = kind === 'door' ? 0.275 : 0.2;
-      const g0 = lerp(p0, p1, wIn), g1 = lerp(p0, p1, 1 - wIn);
-      const t0 = lerp(p0t, p1t, wIn), t1 = lerp(p0t, p1t, 1 - wIn);
+      // Openings span the full width of their wall block (no horizontal inset).
+      const g0 = p0, g1 = p1;
+      const t0 = p0t, t1 = p1t;
       const vLo = kind === 'door' ? 0 : 0.32;
       const vHi = kind === 'door' ? 0.62 : 0.7;
       const bl = lerp(g0, t0, vLo), tl = lerp(g0, t0, vHi);
       const br = lerp(g1, t1, vLo), tr = lerp(g1, t1, vHi);
-      const fill = kind === 'door' ? 'rgba(90,60,40,.55)' : 'rgba(120,160,220,.35)';
-      const stroke = kind === 'door' ? 'rgba(60,40,26,.8)' : 'rgba(70,110,180,.85)';
+      const fill = kind === 'door' ? 'rgba(110,110,115,.55)' : 'rgba(120,140,170,.35)';
+      const stroke = kind === 'door' ? 'rgba(80,80,88,.18)' : 'rgba(95,120,155,.18)';
       return `<polygon class="opening opening-${kind}" points="${bl[0]},${bl[1]} ${br[0]},${br[1]} ${tr[0]},${tr[1]} ${tl[0]},${tl[1]}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
     };
     f.cells.forEach(([c, r]) => {
