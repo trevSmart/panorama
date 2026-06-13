@@ -95,7 +95,6 @@ function health() {
 }
 
 /* ───────── Overview ───────── */
-function greet() { const hr = new Date().getHours(); return hr < 6 ? 'Bona nit' : hr < 13 ? 'Bon dia' : hr < 20 ? 'Bona tarda' : 'Bon vespre'; }
 function verdictHTML(h) {
   const attn = h.pillars.filter(p => p.state !== 'ok'); let title, sub, dot;
   if (h.worst === 'ok') { dot = 'ok'; title = 'Tot va bé.'; sub = 'Cap cosa que requereixi la teva atenció ara mateix. Pots dedicar-te a una altra cosa amb tranquil·litat.'; }
@@ -180,12 +179,12 @@ function renderDetail(container) {
   container.innerHTML = `
     <div class="view view-ops">
       <header class="ops-summary">
-        <div class="hello">${greet()}.</div>
         <div class="verdict">${verdictHTML(h)}</div>
         <div class="pillars">${pillarsHTML(h)}</div>
       </header>
       <div class="ops-layout">
         <aside class="ops-room">${room.html}</aside>
+        <div class="ops-resizer" role="separator" aria-orientation="vertical" tabindex="0" title="Arrossega per ajustar l'amplada"></div>
         <div class="ops-data">
           <section id="sec-queues">
             <div class="sec-title">${sfIconTileHtml('queue', { size: 20 })} Cues <span class="cnt">${QUEUES.length}</span></div>
@@ -205,9 +204,75 @@ function renderDetail(container) {
       </div>
     </div>`;
   attachSeats(container);
+  attachOpsResizer(container);
   container.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { filter.status = b.dataset.st; updateAgents(); });
   container.querySelectorAll('#agentGrid .card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
   startBuildingAnimation();
+}
+
+/** Drag-to-resize splitter between the room (left) and data (right) columns. */
+const OPS_SPLIT_KEY = 'panorama.opsSplit';
+const OPS_SPLIT_MIN = 24; // % of layout width
+const OPS_SPLIT_MAX = 64;
+
+function loadOpsSplit() {
+  try {
+    const v = parseFloat(localStorage.getItem(OPS_SPLIT_KEY));
+    if (Number.isFinite(v)) return Math.min(OPS_SPLIT_MAX, Math.max(OPS_SPLIT_MIN, v));
+  } catch { /* ignore */ }
+  return 40;
+}
+
+function attachOpsResizer(container) {
+  const layout = container.querySelector('.ops-layout');
+  const handle = container.querySelector('.ops-resizer');
+  if (!layout || !handle) return;
+
+  const apply = (pct) => layout.style.setProperty('--ops-split', pct + '%');
+  apply(loadOpsSplit());
+
+  const pctFromEvent = (clientX) => {
+    const r = layout.getBoundingClientRect();
+    const pct = ((clientX - r.left) / r.width) * 100;
+    return Math.min(OPS_SPLIT_MAX, Math.max(OPS_SPLIT_MIN, pct));
+  };
+
+  let dragging = false;
+  const onMove = (e) => {
+    if (!dragging) return;
+    apply(pctFromEvent(e.clientX));
+    e.preventDefault();
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.classList.remove('ops-resizing');
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    const cur = parseFloat(layout.style.getPropertyValue('--ops-split'));
+    try { localStorage.setItem(OPS_SPLIT_KEY, String(cur)); } catch { /* ignore */ }
+  };
+
+  handle.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    handle.classList.add('dragging');
+    document.body.classList.add('ops-resizing');
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    e.preventDefault();
+  });
+
+  // Keyboard support: arrow keys nudge the split by 2%.
+  handle.addEventListener('keydown', (e) => {
+    const step = e.key === 'ArrowLeft' ? -2 : e.key === 'ArrowRight' ? 2 : 0;
+    if (!step) return;
+    const cur = parseFloat(layout.style.getPropertyValue('--ops-split')) || loadOpsSplit();
+    const next = Math.min(OPS_SPLIT_MAX, Math.max(OPS_SPLIT_MIN, cur + step));
+    apply(next);
+    try { localStorage.setItem(OPS_SPLIT_KEY, String(next)); } catch { /* ignore */ }
+    e.preventDefault();
+  });
 }
 
 /** Rebuild FLOORS from the persisted layout and re-render every building view. */
@@ -397,6 +462,52 @@ function updateAgents() {
   grid.innerHTML = agentGridHTML();
   grid.querySelectorAll('.card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
   root.querySelectorAll('[data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === filter.status));
+}
+
+/* ───────── Agents directory view ───────── */
+// Every Omni-enabled agent (connected or not), distinct from Operations which
+// only lists currently connected agents.
+function agentDirectoryCard(a) {
+  const st = STATUS[a.status] || STATUS.offline;
+  return `<button type="button" class="ag-card" data-id="${a.id}">
+    <div class="ag-card-av">${agentAvatarHTML(a, 'ag-av')}<i class="ag-dot" style="background:${st.c}"></i></div>
+    <div class="ag-card-body">
+      <div class="ag-card-name">${a.name}</div>
+      <div class="ag-card-role">${a.role || 'Agent'}</div>
+    </div>
+    <span class="ag-card-status" style="color:${st.c};background:color-mix(in srgb,${st.c} 12%,transparent)"><i style="background:${st.c}"></i>${st.lbl}</span>
+  </button>`;
+}
+
+function agentDirectoryGridHTML(list) {
+  if (!list.length) return '<p style="color:var(--faint)">No agents found.</p>';
+  const order = { online: 0, busy: 1, away: 2, offline: 3 };
+  const sorted = list.slice().sort((a, b) =>
+    (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.name.localeCompare(b.name));
+  return sorted.map(agentDirectoryCard).join('');
+}
+
+let agentDirectoryToken = 0;
+async function renderAgentsDirectory(container) {
+  const token = ++agentDirectoryToken;
+  container.innerHTML = `<div class="view">
+    <div class="view-head"><h2>Agents</h2><p>Every agent enabled for Omni-Channel, connected or not.</p></div>
+    <div class="grid ag-grid" id="agentsDirGrid"><p style="color:var(--faint)">Loading agents…</p></div>
+  </div>`;
+  const grid = container.querySelector('#agentsDirGrid');
+  try {
+    const provider = globalThis.PanoramaProvider;
+    const list = provider?.getAgents
+      ? await provider.getAgents({ scope: 'all' })
+      : (globalThis.AGENTS || []);
+    if (token !== agentDirectoryToken) return; // a newer render superseded this one
+    grid.innerHTML = agentDirectoryGridHTML(list || []);
+    grid.querySelectorAll('.ag-card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
+  } catch (err) {
+    if (token !== agentDirectoryToken) return;
+    console.warn('[Panorama] failed to load agents directory', err);
+    grid.innerHTML = `<p style="color:var(--alert)">Could not load agents: ${err.message}</p>`;
+  }
 }
 
 /* ───────── Queues view ───────── */
@@ -677,6 +788,13 @@ PanoramaWorkspace.registerPanelType({
     startBuildingAnimation();
   },
   deactivate() { Scene3D.dispose(); },
+});
+
+PanoramaWorkspace.registerPanelType({
+  viewType: 'agents',
+  defaultLabel: 'Agents',
+  mount(container) { renderAgentsDirectory(container); },
+  activate(container) { renderAgentsDirectory(container); },
 });
 
 PanoramaWorkspace.registerPanelType({

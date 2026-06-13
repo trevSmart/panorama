@@ -109,6 +109,23 @@ private class PanoramaAgentServiceTest {
     }
 
     @IsTest
+    static void getAgentsAllScopeReturnsList() {
+        Test.startTest();
+        PanoramaAgentService.AgentsResponse response = PanoramaAgentService.getAgents('all');
+        Test.stopTest();
+        System.assertNotEquals(null, response);
+        System.assertNotEquals(null, response.agents);
+    }
+
+    @IsTest
+    static void loadOmniEnabledUserIdsReturnsSet() {
+        Test.startTest();
+        Set<Id> userIds = PanoramaAgentService.loadOmniEnabledUserIds();
+        Test.stopTest();
+        System.assertNotEquals(null, userIds);
+    }
+
+    @IsTest
     static void getQueuesReturnsList() {
         Test.startTest();
         PanoramaQueueService.QueuesResponse response = PanoramaQueueService.getQueues();
