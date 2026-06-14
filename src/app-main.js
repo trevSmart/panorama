@@ -709,8 +709,15 @@ function renderSkillDetail(config) {
   const s = findSkill(config.id);
   const esc = detailEsc;
   if (!s) {
-    if (skillCatalogLoaded) return null;
     const title = config.name || 'Skill';
+    if (skillCatalogLoaded) {
+      return {
+        head: `<div class="dr-id">${skillIconTileHtml({ size: 58 })}
+            <div><div class="nm">${esc(title)}</div><div class="rl">Skill</div></div>
+          </div>`,
+        body: `<p style="color:var(--alert)">Skill not found.</p>`,
+      };
+    }
     return {
       head: `<div class="dr-id">${skillIconTileHtml({ size: 58 })}
           <div><div class="nm">${esc(title)}</div><div class="rl">Skill</div></div>
