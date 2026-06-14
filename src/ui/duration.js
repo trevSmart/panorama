@@ -6,6 +6,7 @@
 export function formatDurationSec(totalSec, { short = false } = {}) {
   const s = Math.max(0, Math.floor(Number(totalSec) || 0));
   if (s < 60) return `${s}s`;
+  if (short) return formatDurationMin(Math.round(s / 60));
 
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -14,11 +15,10 @@ export function formatDurationSec(totalSec, { short = false } = {}) {
   if (h > 0) {
     let out = `${h}h`;
     if (m > 0) out += ` ${m}m`;
-    if (sec > 0) out += ` ${short ? sec : String(sec).padStart(2, '0')}s`;
+    if (sec > 0) out += ` ${String(sec).padStart(2, '0')}s`;
     return out;
   }
 
-  if (short && sec === 0) return `${m}m`;
   return `${m}m ${String(sec).padStart(2, '0')}s`;
 }
 
