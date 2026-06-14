@@ -66,6 +66,9 @@ export function buildFloorsForAgents(agents) {
     f.cellset = new Set(f.cells.map(([c, r]) => `${c},${r}`));
     f.assigned = f.seats.map(([c, r]) => ({ c, r, agent: sorted[k++] || null }));
     f.openings = f.openings || [];
+    f.dividers = f.dividers || [];
+    f.background = f.background || null;
+    f.backgroundOpacity = f.backgroundOpacity;
   });
   return floors;
 }

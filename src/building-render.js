@@ -27,7 +27,7 @@ export function gridExtents(floors) {
 }
 
 export function computeFloorLayout(floors, dir, gMaxC, gMaxR, opts) {
-  const { minH, maxH, TH, beaconPad, marginMin, slabT = 0 } = opts;
+  const { minH, maxH, TH, beaconPad, marginMin, slabT = 0, floorGapExtra = 0 } = opts;
   const gaps = [];
   for (let i = 0; i < floors.length - 1; i++) {
     const upper = floors[i];
@@ -38,8 +38,8 @@ export function computeFloorLayout(floors, dir, gMaxC, gMaxR, opts) {
     const cellSums = upper.cells.map(([c, r]) => isoDepthSum(c, r, dir, gMaxC, gMaxR));
     const maxCell = cellSums.length ? Math.max(...cellSums) : 0;
     const minLower = lowerSums.length ? Math.min(...lowerSums) : 0;
-    const geoDelta = (maxCell - minLower) * TH;
-    const gap = geoDelta + TH + maxH + beaconPad + marginMin + slabT;
+    const geoDelta = Math.max((maxCell - minLower) * TH, 0);
+    const gap = geoDelta + TH + maxH + beaconPad + marginMin + slabT + floorGapExtra;
     gaps.push(gap);
   }
   // Index 0 is the top item in the floor editor list — render it highest on screen.
@@ -52,8 +52,9 @@ export function computeFloorLayout(floors, dir, gMaxC, gMaxR, opts) {
 
 const EMPTY_SVG = '<svg viewBox="0 0 480 240" xmlns="http://www.w3.org/2000/svg"><text x="240" y="120" text-anchor="middle" fill="#9C98A6" font-size="14" font-family="Inter,sans-serif">Team map unavailable</text></svg>';
 
+
 /**
- * @param {Array<{ name: string, cells: number[][], cellset: Set<string>, assigned: Array<{ c: number, r: number }>, openings?: Array<{ c: number, r: number, edge: string, kind: string }>, dividers?: Array<{ c: number, r: number, edge: string }> }>} floors
+ * @param {Array<{ name: string, cells: number[][], cellset: Set<string>, assigned: Array<{ c: number, r: number }>, openings?: Array<{ c: number, r: number, edge: string, kind: string }>, dividers?: Array<{ c: number, r: number, edge: string }>, background?: string|null, backgroundOpacity?: number }>} floors
  * @param {number} dir 0-3 camera direction
  * @param {{ floorOffsets?: number[], seatParts?: Function, meta?: { anchors: Array<{ name: string, x: number, y: number }>, viewBox: { x: number, y: number, w: number, h: number } } }} [opts]
  * @returns {string} SVG markup
@@ -153,8 +154,9 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     const xShift = floorXShifts[i] || 0;
     const rfVis = makeRfVis(has); const lfVis = makeLfVis(has);
     const brVis = makeBrVis(has); const blVis = makeBlVis(has);
-    let fWalls = '', fGround = '', fGroundShadow = '', fGlow = '', fCubes = '';
-    let fMinX = 1e9, fMaxX = -1e9, fTopY = 1e9;
+    let fWalls = '', fGround = '', fGroundShadow = '', fGlow = '', fCubes = '', fBackground = '';
+    let fMinX = 1e9, fMaxX = -1e9, fTopY = 1e9, fBottomY = -1e9;
+    const hasBg = f.background && f.backgroundOpacity > 0 && opts.backgroundUrl;
     const centerSet = new Set(f.cells.map(([c, r]) => {
       const [x, y] = getPos(c, r);
       return `${x + xShift},${y + yOff}`;
@@ -190,6 +192,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
       const [xBase, y0] = getPos(c, r); const x0 = xBase + xShift; const y = y0 + yOff;
       fMinX = Math.min(fMinX, x0 - TW); fMaxX = Math.max(fMaxX, x0 + TW);
       if (y - TH < fTopY) fTopY = y - TH;
+      if (y + TH + THK > fBottomY) fBottomY = y + TH + THK;
       // Back walls rise from the rear ground edges (top vertex → side vertex),
       // extruded upward by WALL_H. Drawn first so they sit behind everything.
       if (brVis(c, r) && !hasRearCellBeyond(x0, y, TW)) {
@@ -244,6 +247,17 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
       });
       ext(x0 - TW, y - TH); ext(x0 + TW, y + TH + THK);
     });
+    if (hasBg) {
+      const href = opts.backgroundUrl(f.background);
+      if (href) {
+        const pad = TW * 0.35;
+        const bx = fMinX - pad;
+        const by = fTopY - pad;
+        const bw = Math.max(1, (fMaxX - fMinX) + pad * 2);
+        const bh = Math.max(1, (fBottomY - fTopY) + pad * 2);
+        fBackground = `<image class="room-bg" href="${href}" x="${bx}" y="${by}" width="${bw}" height="${bh}" preserveAspectRatio="xMidYMid meet" opacity="${f.backgroundOpacity}"/>`;
+      }
+    }
     // Topmost point actually drawn on this floor (slab, or tallest tower/beacon
     // once seats render below); the label hangs just above it.
     let fContentTop = fTopY;
@@ -257,7 +271,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
       if (parts.cube) fCubes += parts.cube;
     });
     if (fGroundShadow) allShadows += `<g filter="url(#floordrop)" fill="rgba(27,25,36,.1)">${fGroundShadow}</g>`;
-    body += fWalls + fGround + fGlow + fCubes;
+    body += fBackground + fWalls + fGround + fGlow + fCubes;
     if (opts.meta && f.name) {
       const labelY = fContentTop - LABEL_GAP;
       const labelX = (fMinX + fMaxX) / 2;
