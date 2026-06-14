@@ -21,6 +21,14 @@ import { syncDropdownPanel } from './ui/dropdown-panel.js';
 import { enhanceAllSelects, syncCustomSelect } from './ui/custom-select.js';
 import { devConsole } from './dev/dev-console.js';
 import { consolePanel } from './dev/console-panel.js';
+import {
+  applyPreferencesSideEffects,
+  applyPreferencesToForm,
+  getRefreshConfig,
+  loadPreferences,
+  readPreferencesFormState,
+  savePreferences,
+} from './settings/preferences.js';
 
 /* ───────── Helpers ───────── */
 const initials = n => n.split(' ').map(w => w[0]).slice(0, 2).join('');
@@ -260,7 +268,11 @@ function renderDetail(container) {
   attachSeats(container);
   attachOpsResizer(container);
   attachQueueCardClicks(container);
-  container.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { filter.status = b.dataset.st; updateAgents(); });
+  container.querySelectorAll('[data-st]').forEach(b => b.onclick = () => {
+    filter.status = b.dataset.st;
+    devConsole.action('agents:filter', filter.status);
+    updateAgents();
+  });
   container.querySelectorAll('#agentGrid .card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
   startBuildingAnimation();
 }
@@ -1807,6 +1819,7 @@ const GlobalSearch = {
   },
 
   select(kind, id) {
+    devConsole.action('search:select', kind, id);
     if (kind === 'agent' || kind === 'work') openDrawer(id);
     else if (kind === 'queue') openQueueDrawer(id);
     else if (kind === 'skill') {
@@ -1825,10 +1838,10 @@ const SettingsModal = {
   _snapshot: null,
 
   open(runtimeConfig) {
+    devConsole.action('settings:open');
     this._populate(runtimeConfig);
+    applyPreferencesToForm(this.backdrop, loadPreferences(), syncCustomSelect);
     applyDevModeToSettings(isDevModeOn());
-    const showConsoleCb = document.getElementById('settingsShowConsole');
-    if (showConsoleCb) showConsoleCb.checked = localStorage.getItem('panorama.console.show') === 'true';
     this._snapshot = this._readFormState();
     this.backdrop.querySelectorAll('select.settings-select').forEach((el) => syncCustomSelect(el));
     this.backdrop.classList.add('open');
@@ -1846,19 +1859,32 @@ const SettingsModal = {
     if (!force && this._isDirty()) {
       const discard = confirm('You have unsaved changes. Close without saving?');
       if (!discard) return false;
+      devConsole.action('settings:discard');
+      this._restoreFormState(this._snapshot);
+      applyPreferencesSideEffects(this._snapshot, {
+        consolePanel,
+        isDevModeOn,
+      });
     }
     this.close();
     return true;
   },
 
-  _readFormState() {
-    const state = {};
-    this.backdrop.querySelectorAll(
-      'select.settings-select, input.settings-input, .settings-toggle input[type="checkbox"]',
-    ).forEach((el) => {
-      if (!el.id) return;
-      state[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+  _restoreFormState(state) {
+    if (!state) return;
+    Object.entries(state).forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox') el.checked = !!value;
+      else el.value = String(value);
+      if (el.classList.contains('settings-select')) syncCustomSelect(el);
     });
+  },
+
+  _readFormState() {
+    const state = readPreferencesFormState(this.backdrop);
+    const dsEl = document.getElementById('settingsDataSource');
+    if (dsEl) state.settingsDataSource = dsEl.value;
     return state;
   },
 
@@ -1944,8 +1970,18 @@ const SettingsModal = {
   },
 
   _save(runtimeConfig) {
+    const state = this._readFormState();
     const dsEl = document.getElementById('settingsDataSource');
-    if (dsEl && runtimeConfig && dsEl.value !== runtimeConfig.dataSource) {
+    const dataSourceChanged = dsEl && runtimeConfig && dsEl.value !== runtimeConfig.dataSource;
+    devConsole.action('settings:save', dataSourceChanged ? 'dataSource' : 'preferences');
+    savePreferences(state);
+    applyPreferencesSideEffects(state, {
+      consolePanel,
+      isDevModeOn,
+    });
+    globalThis.PanoramaProvider?.setRefreshInterval?.(getRefreshConfig());
+
+    if (dataSourceChanged) {
       try { localStorage.setItem('panorama.dataSource', dsEl.value); } catch { /* ignore */ }
       globalThis.location.reload();
     }
@@ -1969,24 +2005,18 @@ const SettingsModal = {
 
     document.getElementById('settingsSfReauth')?.addEventListener('click', () => {
       if (!this.requestClose()) return;
+      devConsole.action('settings:reauth');
       globalThis.location.href = '/?source=salesforce';
     });
 
     document.getElementById('settingsClearStorage')?.addEventListener('click', () => {
       if (confirm('S\'esborraran totes les dades locals (sessió, preferències i caché). Continuar?')) {
+        devConsole.action('settings:clear-storage');
         localStorage.clear();
         globalThis.location.reload();
       }
     });
 
-    const showConsoleCb = document.getElementById('settingsShowConsole');
-    if (showConsoleCb) {
-      showConsoleCb.addEventListener('change', () => {
-        const on = showConsoleCb.checked;
-        try { localStorage.setItem('panorama.console.show', on ? 'true' : 'false'); } catch { /* ignore */ }
-        if (on) consolePanel.show(); else consolePanel.hide();
-      });
-    }
     Panorama.openSettings = () => this.open(runtimeConfig);
     enhanceAllSelects(this.backdrop);
   },

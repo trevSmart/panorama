@@ -5,6 +5,7 @@ import { attachAgentPhotoBlobs, revokeAgentPhotoBlobs } from './agent-photos.js'
 import { normalizeAgent, normalizeAgentSkill, normalizeQueue, normalizeSkill, normalizeWorkRecord } from './normalize.js';
 import { READ_ONLY_CAPABILITIES } from './types.js';
 import { devConsole } from '../dev/dev-console.js';
+import { getRefreshConfig } from '../settings/preferences.js';
 
 /**
  * @param {string} apiBaseUrl
@@ -15,6 +16,8 @@ import { devConsole } from '../dev/dev-console.js';
  * @param {boolean} [retried]
  */
 async function apiFetch(apiBaseUrl, accessToken, path, recoverSession, init, retried = false) {
+  const method = (init?.method || 'GET').toUpperCase();
+  devConsole.api(method, path);
   const url = `${apiBaseUrl.replace(/\/$/, '')}${path}`;
   const res = await fetch(url, {
     credentials: 'omit',
@@ -54,7 +57,7 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
   const listeners = new Set();
   /** @type {ReturnType<typeof setInterval>|null} */
   let pollTimer = null;
-  const pollIntervalMs = 15000;
+  let { intervalMs: pollIntervalMs, autoRefresh } = getRefreshConfig();
   /** @type {string} */
   let apiBaseUrl = runtimeConfig.apiBaseUrl;
   const recoverSession = () => recoverAccessSession(runtimeConfig);
@@ -71,8 +74,8 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
     Object.assign(globalThis, getLegacyBindings());
   }
 
-  async function refresh() {
-    devConsole.action('data:load', 'salesforce');
+  async function refresh({ poll = false } = {}) {
+    devConsole.action(poll ? 'data:poll' : 'data:load', 'salesforce');
     const session = await getSession();
     apiBaseUrl = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
 
@@ -205,8 +208,10 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
 
   function startPolling() {
     if (pollTimer) clearInterval(pollTimer);
+    pollTimer = null;
+    if (!autoRefresh) return;
     pollTimer = setInterval(() => {
-      refresh().catch((err) => console.warn('[Panorama] poll failed', err));
+      refresh({ poll: true }).catch((err) => console.warn('[Panorama] poll failed', err));
     }, pollIntervalMs);
   }
 
@@ -225,6 +230,16 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
       pollTimer = null;
       listeners.clear();
       revokeAgentPhotoBlobs();
+    },
+
+    /**
+     * Apply a new polling cadence live (from settings).
+     * @param {{ intervalMs: number, autoRefresh: boolean }} cfg
+     */
+    setRefreshInterval(cfg) {
+      pollIntervalMs = Math.max(1000, cfg.intervalMs);
+      autoRefresh = cfg.autoRefresh;
+      startPolling();
     },
 
     /**
