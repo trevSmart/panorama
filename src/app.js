@@ -1,13 +1,23 @@
-import { handleOAuthCallback, ensureAuthenticated, beginLogin, isOAuthCallbackPath, getOAuthCallbackError, getOAuthSession, logout } from './auth/salesforce-oauth.js';
+import { handleOAuthCallback, ensureAuthenticated, beginLogin, isOAuthCallbackPath, getOAuthCallbackError, getOAuthSession, logout, initOAuthSessionStorage } from './auth/salesforce-oauth.js';
+import { buildPhotoProxyParams } from './data/agent-photos.js';
 import { installDataLayer, loadAppConfig } from './install-data.js';
+
+function showBodyMessage(title, message, hint = '') {
+  document.body.replaceChildren();
+  const pre = document.createElement('pre');
+  pre.style.cssText = 'padding:24px;font-family:monospace;white-space:pre-wrap';
+  pre.textContent = `${title}: ${message}${hint}`;
+  document.body.appendChild(pre);
+}
 
 function showOAuthError(message) {
   const hint = message.includes('admin approved') || message.includes('OAUTH_APP_ACCESS_DENIED')
     ? `\n\nFix in Salesforce Setup:\n1. External Client App → Panorama → Policies\n2. OAuth Policies → Permitted Users → "Admin approved users are pre-authorized"\n3. App Policies → add Permission Set "Panorama External User"\n4. Setup → Permission Sets → Panorama External User → Assign to your user`
     : '\n\nCheck ECA callback URL, CORS, and Permission Set policies.';
-  document.body.innerHTML = `<pre style="padding:24px;font-family:monospace;white-space:pre-wrap">OAuth failed: ${message}${hint}</pre>`;
+  showBodyMessage('OAuth failed', message, hint);
 }
 
+await initOAuthSessionStorage();
 const runtimeConfig = await loadAppConfig();
 
 if (isOAuthCallbackPath()) {
@@ -44,7 +54,7 @@ if (isOAuthCallbackPath()) {
       logout();
       await ensureAuthenticated(runtimeConfig);
     } else {
-      document.body.innerHTML = `<pre style="padding:24px;font-family:monospace;white-space:pre-wrap">Failed to load Salesforce data: ${err.message}</pre>`;
+      showBodyMessage('Failed to load Salesforce data', err.message);
       throw err;
     }
   }
@@ -150,10 +160,18 @@ async function initUserMenu(runtimeConfig) {
 
     // Update avatar
     if (avatar && photoUrl) {
-      const photoRes = await fetch(`/api/salesforce/photo?url=${encodeURIComponent(photoUrl)}`, {
-        headers: { Authorization: `Bearer ${session.accessToken}` },
-      });
-      if (photoRes.ok) {
+      let photoParams;
+      try {
+        photoParams = buildPhotoProxyParams(photoUrl);
+      } catch {
+        photoParams = null;
+      }
+      const photoRes = photoParams
+        ? await fetch(`/api/salesforce/photo?${photoParams}`, {
+          headers: { Authorization: `Bearer ${session.accessToken}` },
+        })
+        : null;
+      if (photoRes?.ok) {
         const blob = await photoRes.blob();
         const blobUrl = URL.createObjectURL(blob);
         avatar.innerHTML = `<img src="${blobUrl}" alt="${displayName}">`;

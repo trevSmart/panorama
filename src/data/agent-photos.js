@@ -26,6 +26,15 @@ export function normalizePhotoUrl(photo, instanceUrl) {
   return `${base}/${trimmed}`;
 }
 
+/** @param {string} photoUrl */
+export function buildPhotoProxyParams(photoUrl) {
+  const parsed = new URL(photoUrl);
+  return new URLSearchParams({
+    host: parsed.hostname,
+    path: `${parsed.pathname}${parsed.search}`,
+  });
+}
+
 /**
  * Loads Salesforce profile photos through the local auth proxy.
  * @param {Array<{ id: string, photo?: string }>} agents
@@ -41,7 +50,7 @@ export async function attachAgentPhotoBlobs(agents, accessToken, instanceUrl) {
     agent.photo = photoUrl;
     try {
       const res = await fetch(
-        `/api/salesforce/photo?url=${encodeURIComponent(photoUrl)}`,
+        `/api/salesforce/photo?${buildPhotoProxyParams(photoUrl)}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       if (!res.ok) return;

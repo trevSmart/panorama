@@ -66,9 +66,7 @@ function variantFloorGradient(reinforceWalls) {
       </linearGradient>
     </defs>
     <rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="url(#depthgrad)" clip-path="url(#floorclip)"/>`;
-  // Inserir l'overlay just després del grup del body (sobre el terra, sota labels).
-  svg = svg.replace('<g>' + '', '<g>'); // no-op anchor
-  // Posem el gradient abans del tancament del primer </g> dels cossos:
+  // Insert the overlay after the body group (above the floor, below labels).
   svg = svg.replace(/(<g>.*?)(<\/g><g>)/s, (_, body, tail) => body + grad + tail);
 
   if (reinforceWalls) {

@@ -1,7 +1,13 @@
+import {
+  clearOAuthSessionStorage,
+  getCachedOAuthSession,
+  initOAuthSessionStorage,
+  persistOAuthSession,
+} from './oauth-session-storage.js';
+
 const STORAGE_PREFIX = 'panorama.oauth.';
 const PKCE_VERIFIER_KEY = `${STORAGE_PREFIX}pkce_verifier`;
 const STATE_KEY = `${STORAGE_PREFIX}state`;
-const SESSION_KEY = `${STORAGE_PREFIX}session`;
 
 /** @typedef {{ accessToken: string, refreshToken?: string, instanceUrl: string, expiresAt: number }} OAuthSession */
 
@@ -65,20 +71,11 @@ async function pkceChallenge(verifier) {
   return base64UrlEncode(new Uint8Array(digest));
 }
 
+export { initOAuthSessionStorage };
+
 /** @returns {OAuthSession|null} */
 export function getOAuthSession() {
-  const raw = storageGet(SESSION_KEY, true);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-/** @param {OAuthSession} session */
-function saveOAuthSession(session) {
-  storageSet(SESSION_KEY, JSON.stringify(session), true);
+  return getCachedOAuthSession();
 }
 
 function isSessionValid(session) {
@@ -147,7 +144,7 @@ export async function handleOAuthCallback(config) {
     instanceUrl: payload.instance_url,
     expiresAt: Date.now() + (Number(payload.expires_in) || 7200) * 1000,
   };
-  saveOAuthSession(session);
+  await persistOAuthSession(session);
   return session;
 }
 
@@ -206,7 +203,7 @@ async function refreshAccessToken(config, session) {
     });
   } catch (err) {
     if (isRefreshAuthFailure(err)) {
-      storageRemove(SESSION_KEY, true);
+      clearOAuthSessionStorage();
     }
     throw err;
   }
@@ -217,7 +214,7 @@ async function refreshAccessToken(config, session) {
     instanceUrl: payload.instance_url || session.instanceUrl,
     expiresAt: Date.now() + (Number(payload.expires_in) || 7200) * 1000,
   };
-  saveOAuthSession(next);
+  await persistOAuthSession(next);
   return next;
 }
 
@@ -263,7 +260,7 @@ export async function getValidAccessSession(config) {
 }
 
 export function logout() {
-  storageRemove(SESSION_KEY, true);
+  clearOAuthSessionStorage();
   storageRemove(PKCE_VERIFIER_KEY, true);
   storageRemove(STATE_KEY, true);
 }
