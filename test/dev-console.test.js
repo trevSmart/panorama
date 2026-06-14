@@ -60,3 +60,41 @@ test('subscribe receives entry events and unsubscribe stops them', () => {
   assert.equal(events[0].type, 'entry');
   assert.equal(events[0].entry.text, 'one');
 });
+
+test('install captures console.* and still calls originals', () => {
+  const calls = [];
+  const fakeConsole = {
+    log: (...a) => calls.push(['log', ...a]),
+    info: (...a) => calls.push(['info', ...a]),
+    warn: (...a) => calls.push(['warn', ...a]),
+    error: (...a) => calls.push(['error', ...a]),
+  };
+  const dc = createDevConsole();
+  dc.setCapturing(true);
+  dc.install(fakeConsole);
+  fakeConsole.log('hi');
+  fakeConsole.error('boom');
+  assert.equal(dc.getEntries().length, 2);
+  assert.equal(dc.getEntries()[0].text, 'hi');
+  assert.deepEqual(calls, [['log', 'hi'], ['error', 'boom']]);
+});
+
+test('install is idempotent (no double-wrapping)', () => {
+  const calls = [];
+  const fakeConsole = { log: (...a) => calls.push(a), info() {}, warn() {}, error() {} };
+  const dc = createDevConsole();
+  dc.setCapturing(true);
+  dc.install(fakeConsole);
+  dc.install(fakeConsole);
+  fakeConsole.log('once');
+  assert.equal(dc.getEntries().length, 1);
+});
+
+test('uninstall restores original console methods', () => {
+  const original = () => {};
+  const fakeConsole = { log: original, info() {}, warn() {}, error() {} };
+  const dc = createDevConsole();
+  dc.install(fakeConsole);
+  dc.uninstall(fakeConsole);
+  assert.equal(fakeConsole.log, original);
+});

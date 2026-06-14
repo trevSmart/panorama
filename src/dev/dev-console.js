@@ -29,6 +29,31 @@ export function createDevConsole() {
     emit({ type: 'entry', entry });
   }
 
+  let installed = false;
+  let originals = null;
+  const LEVELS = ['log', 'info', 'warn', 'error'];
+
+  function install(target = globalThis.console) {
+    if (installed || !target) return;
+    originals = {};
+    for (const level of LEVELS) {
+      originals[level] = target[level];
+      const orig = target[level];
+      target[level] = (...args) => {
+        log(level, ...args);
+        if (typeof orig === 'function') orig.apply(target, args);
+      };
+    }
+    installed = true;
+  }
+
+  function uninstall(target = globalThis.console) {
+    if (!installed || !originals || !target) return;
+    for (const level of LEVELS) target[level] = originals[level];
+    originals = null;
+    installed = false;
+  }
+
   return {
     log,
     info: (...a) => log('info', ...a),
@@ -40,6 +65,8 @@ export function createDevConsole() {
     subscribe(fn) { subscribers.add(fn); return () => subscribers.delete(fn); },
     setCapturing: (on) => { capturing = !!on; },
     isCapturing: () => capturing,
+    install,
+    uninstall,
   };
 }
 
