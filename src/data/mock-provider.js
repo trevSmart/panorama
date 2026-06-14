@@ -16,6 +16,7 @@ import {
 } from './mock-seed.js';
 import { formatWorkTimer } from '../ui/duration.js';
 import { MOCK_CAPABILITIES } from './types.js';
+import { devConsole } from '../dev/dev-console.js';
 
 /**
  * @typedef {import('./types.js').PanoramaCapabilities} PanoramaCapabilities
@@ -28,6 +29,7 @@ import { MOCK_CAPABILITIES } from './types.js';
  * @returns {import('./types.js').Agent[]|Promise<import('./types.js').Agent[]>}
  */
 function getAgents(opts) {
+  devConsole.action('data:load', 'mock');
   // Embed each agent's skills so the client has them up front, mirroring the
   // Salesforce /agents payload (skills are no longer fetched lazily per drawer).
   const hydrate = (a) => ({ ...a, skills: agentSkillRows(a.id) });

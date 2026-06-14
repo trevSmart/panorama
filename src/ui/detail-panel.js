@@ -6,6 +6,7 @@
  */
 
 import { recordDetailOpen } from '../data/detail-recent-store.js';
+import { devConsole } from '../dev/dev-console.js';
 
 const kinds = new Map();
 
@@ -101,6 +102,7 @@ export function openDetailDrawer(config) {
 
   drawerConfig = { ...config };
   recordDetailOpen(config);
+  devConsole.action('detail:open', config?.kind, config?.id ?? '');
   mountDetailSurface(drawer, drawerConfig, 'drawer');
   drawer.classList.add('show');
   scrim.classList.add('show');
@@ -108,6 +110,7 @@ export function openDetailDrawer(config) {
 
 export function closeDetailDrawer() {
   drawerEl()?.classList.remove('show');
+  devConsole.action('detail:close');
   scrimEl()?.classList.remove('show');
   drawerConfig = null;
 }
