@@ -91,8 +91,8 @@ function isSessionValid(session) {
 export function beginLogin(config) {
   const verifier = randomVerifier();
   const state = randomVerifier(32);
-  storageSet(PKCE_VERIFIER_KEY, verifier);
-  storageSet(STATE_KEY, state);
+  storageSet(PKCE_VERIFIER_KEY, verifier, true);
+  storageSet(STATE_KEY, state, true);
 
   return pkceChallenge(verifier).then((challenge) => {
     const params = new URLSearchParams({
@@ -121,15 +121,17 @@ export async function handleOAuthCallback(config) {
 
   const code = params.get('code');
   const state = params.get('state');
-  const expectedState = storageGet(STATE_KEY);
-  const verifier = storageGet(PKCE_VERIFIER_KEY);
+  const expectedState = storageGet(STATE_KEY, true);
+  const verifier = storageGet(PKCE_VERIFIER_KEY, true);
 
   if (!code || !state || !verifier || state !== expectedState) {
+    storageRemove(STATE_KEY, true);
+    storageRemove(PKCE_VERIFIER_KEY, true);
     throw new Error('Invalid OAuth callback (missing or mismatched state).');
   }
 
-  storageRemove(STATE_KEY);
-  storageRemove(PKCE_VERIFIER_KEY);
+  storageRemove(STATE_KEY, true);
+  storageRemove(PKCE_VERIFIER_KEY, true);
 
   const payload = await requestTokenExchange({
     grant_type: 'authorization_code',
@@ -173,7 +175,22 @@ function isRefreshAuthFailure(err) {
 }
 
 /**
+ * Force a refresh_token exchange even when local expiresAt still looks valid.
  * @param {{ sfClientId: string, sfLoginUrl: string, sfRedirectUri: string }} config
+ * @returns {Promise<OAuthSession>}
+ */
+export async function recoverAccessSession(config) {
+  const session = getOAuthSession();
+  if (!session?.refreshToken) {
+    logout();
+    throw new Error('Not authenticated.');
+  }
+  return refreshAccessToken(config, session);
+}
+
+/**
+ * @param {{ sfClientId: string, sfLoginUrl: string, sfRedirectUri: string }} config
+ * @param {OAuthSession} session
  * @returns {Promise<OAuthSession>}
  */
 async function refreshAccessToken(config, session) {
@@ -247,8 +264,8 @@ export async function getValidAccessSession(config) {
 
 export function logout() {
   storageRemove(SESSION_KEY, true);
-  storageRemove(PKCE_VERIFIER_KEY);
-  storageRemove(STATE_KEY);
+  storageRemove(PKCE_VERIFIER_KEY, true);
+  storageRemove(STATE_KEY, true);
 }
 
 export function isOAuthCallbackPath() {
