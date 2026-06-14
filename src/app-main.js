@@ -19,6 +19,8 @@ import {
 } from './ui/detail-panel.js';
 import { syncDropdownPanel } from './ui/dropdown-panel.js';
 import { enhanceAllSelects, syncCustomSelect } from './ui/custom-select.js';
+import { devConsole } from './dev/dev-console.js';
+import { consolePanel } from './dev/console-panel.js';
 
 /* ───────── Helpers ───────── */
 const initials = n => n.split(' ').map(w => w[0]).slice(0, 2).join('');
@@ -1820,9 +1822,14 @@ GlobalSearch.init();
 // ── Settings modal ──────────────────────────────────────────────────────
 const SettingsModal = {
   backdrop: document.getElementById('settingsBackdrop'),
+  _snapshot: null,
 
   open(runtimeConfig) {
     this._populate(runtimeConfig);
+    applyDevModeToSettings(isDevModeOn());
+    const showConsoleCb = document.getElementById('settingsShowConsole');
+    if (showConsoleCb) showConsoleCb.checked = localStorage.getItem('panorama.console.show') === 'true';
+    this._snapshot = this._readFormState();
     this.backdrop.querySelectorAll('select.settings-select').forEach((el) => syncCustomSelect(el));
     this.backdrop.classList.add('open');
     document.getElementById('settingsClose').focus();
@@ -1831,11 +1838,38 @@ const SettingsModal = {
 
   close() {
     this.backdrop.classList.remove('open');
+    this._snapshot = null;
     document.removeEventListener('keydown', this._onKey);
   },
 
+  requestClose(force = false) {
+    if (!force && this._isDirty()) {
+      const discard = confirm('You have unsaved changes. Close without saving?');
+      if (!discard) return false;
+    }
+    this.close();
+    return true;
+  },
+
+  _readFormState() {
+    const state = {};
+    this.backdrop.querySelectorAll(
+      'select.settings-select, input.settings-input, .settings-toggle input[type="checkbox"]',
+    ).forEach((el) => {
+      if (!el.id) return;
+      state[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    return state;
+  },
+
+  _isDirty() {
+    if (!this._snapshot) return false;
+    const current = this._readFormState();
+    return Object.keys(this._snapshot).some((key) => this._snapshot[key] !== current[key]);
+  },
+
   _onKey(e) {
-    if (e.key === 'Escape') SettingsModal.close();
+    if (e.key === 'Escape') SettingsModal.requestClose();
   },
 
   _populate(runtimeConfig) {
@@ -1918,10 +1952,10 @@ const SettingsModal = {
   },
 
   init(runtimeConfig) {
-    document.getElementById('settingsClose').addEventListener('click', () => this.close());
-    document.getElementById('settingsCancel').addEventListener('click', () => this.close());
+    document.getElementById('settingsClose').addEventListener('click', () => this.requestClose());
+    document.getElementById('settingsCancel').addEventListener('click', () => this.requestClose());
     this.backdrop.addEventListener('click', (e) => {
-      if (e.target === this.backdrop) this.close();
+      if (e.target === this.backdrop) this.requestClose();
     });
 
     this.backdrop.querySelectorAll('.settings-nav-item').forEach(btn => {
@@ -1930,11 +1964,11 @@ const SettingsModal = {
 
     document.getElementById('settingsSave').addEventListener('click', () => {
       this._save(runtimeConfig);
-      this.close();
+      this.requestClose(true);
     });
 
     document.getElementById('settingsSfReauth')?.addEventListener('click', () => {
-      this.close();
+      if (!this.requestClose()) return;
       globalThis.location.href = '/?source=salesforce';
     });
 
@@ -1945,10 +1979,52 @@ const SettingsModal = {
       }
     });
 
+    const showConsoleCb = document.getElementById('settingsShowConsole');
+    if (showConsoleCb) {
+      showConsoleCb.addEventListener('change', () => {
+        const on = showConsoleCb.checked;
+        try { localStorage.setItem('panorama.console.show', on ? 'true' : 'false'); } catch { /* ignore */ }
+        if (on) consolePanel.show(); else consolePanel.hide();
+      });
+    }
     Panorama.openSettings = () => this.open(runtimeConfig);
     enhanceAllSelects(this.backdrop);
   },
 };
+
+function isDevModeOn() {
+  return localStorage.getItem('panorama.developerMode') === 'true';
+}
+
+function applyDevModeToSettings(on) {
+  const nav = document.getElementById('settingsNavDeveloper');
+  if (nav) nav.hidden = !on;
+  if (!on) {
+    const sec = document.getElementById('settings-developer');
+    if (sec && sec.classList.contains('active')) {
+      document.querySelector('.settings-nav-item[data-section="connexio"]')?.click();
+    }
+    consolePanel.hide();
+  }
+}
+
+function bootDevConsole() {
+  if (!isDevModeOn()) return;
+  devConsole.install();
+  devConsole.setCapturing(true);
+  if (localStorage.getItem('panorama.console.show') === 'true') {
+    consolePanel.show();
+  }
+}
+
+window.addEventListener('panorama:devmode', (e) => {
+  const on = !!e.detail?.on;
+  if (on) { devConsole.install(); devConsole.setCapturing(true); }
+  else { devConsole.setCapturing(false); }
+  applyDevModeToSettings(on);
+});
+
+bootDevConsole();
 
 SettingsModal.init(globalThis.__panoramaRuntimeConfig);
 
