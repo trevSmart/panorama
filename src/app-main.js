@@ -1048,6 +1048,32 @@ function activeWorkInQueue(q, live) {
     .filter((a) => a.work && a.work.q === q.id)
     .map((a) => ({ agent: a, work: a.work, ageMin: a.workSec }));
 }
+
+let queueWaitingWorkToken = 0;
+
+function queuedWorkForQueue(list, queueId) {
+  return (list || [])
+    .filter((w) => w.status === 'queued' && w.queueId === queueId)
+    .sort((a, b) => (Number(b.ageSec) || 0) - (Number(a.ageSec) || 0));
+}
+
+function queueWaitingWorkRowHTML(w, esc) {
+  const channelKey = w.channelKey || 'cas';
+  const label = w.subject || 'Work item';
+  const detail = CH_LBL[channelKey] || 'Work item';
+  const ageSec = Number(w.ageSec) || 0;
+  return `<div class="queue-agent-row queue-waiting-row">
+    <div class="assigned-queue-work-icon">${channelIconTileHtml(channelKey, { size: 24 })}</div>
+    <div class="queue-agent-copy"><div class="queue-agent-name">${esc(label)}</div><div class="queue-agent-role">${esc(detail)}</div></div>
+    <span class="assigned-queue-work-age mono">${formatWorkTimer(ageSec)}</span>
+  </div>`;
+}
+
+function queueWaitingWorkListHTML(items, esc) {
+  if (!items.length) return '<div class="assigned-queue-empty">No items waiting in this queue</div>';
+  return items.map((w) => queueWaitingWorkRowHTML(w, esc)).join('');
+}
+
 function renderQueueDetail(config) {
   const q = queueState.find((x) => x.id === config.id);
   if (!q) return null;
@@ -1104,11 +1130,29 @@ function renderQueueDetail(config) {
         </div>
       </section>
       <section><h4>Assigned agents (${members.length})</h4><div class="queue-agent-list">${memberRows}</div></section>
+      <section><h4>Waiting in queue (<span id="queueWaitingCount">${q.backlog}</span>)</h4><div class="queue-agent-list" id="queueWaitingList"><div class="assigned-queue-empty">Loading…</div></div></section>
       <section><h4>Active work (${workItems.length})</h4><div class="queue-agent-list">${workRows}</div></section>`,
-    afterMount(root, _config, ctx) {
+    afterMount(root, cfg, ctx) {
       root.querySelectorAll('[data-agent-id]').forEach((el) => {
         el.addEventListener('click', () => ctx.openAgent(el.dataset.agentId));
       });
+
+      const listEl = root.querySelector('#queueWaitingList');
+      const countEl = root.querySelector('#queueWaitingCount');
+      if (!listEl) return;
+      const token = ++queueWaitingWorkToken;
+      Promise.resolve(globalThis.PanoramaProvider?.getWork?.() ?? [])
+        .then((all) => {
+          if (token !== queueWaitingWorkToken) return;
+          const waiting = queuedWorkForQueue(all, cfg.id);
+          listEl.innerHTML = queueWaitingWorkListHTML(waiting, detailEsc);
+          if (countEl) countEl.textContent = String(waiting.length);
+        })
+        .catch((err) => {
+          if (token !== queueWaitingWorkToken) return;
+          console.warn('[Panorama] failed to load queue waiting work', err);
+          listEl.innerHTML = `<div class="assigned-queue-empty" style="color:var(--alert)">Could not load waiting items: ${detailEsc(err.message)}</div>`;
+        });
     },
   };
 }
