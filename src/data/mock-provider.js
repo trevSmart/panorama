@@ -62,14 +62,6 @@ function getSkills() {
 }
 
 /**
- * Agents qualified for a skill. The mock roster has no skill links, so derive a
- * stable subset deterministically from the skill id: the same skill always
- * resolves to the same agents (count taken from skill.agents, capped at roster
- * size). Resolved as a promise to match the Salesforce provider contract.
- * @param {string} skillId
- * @returns {Promise<import('./types.js').Agent[]>}
- */
-/**
  * Stable roster slice qualified for a skill (sync helper). Seeds a rotation
  * offset from the skill id so each skill picks a different but reproducible
  * slice; count comes from skill.agents, capped at roster size.
