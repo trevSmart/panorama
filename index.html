@@ -1973,6 +1973,7 @@
     .scrim {
       position: fixed;
       inset: 0;
+      bottom: var(--dev-console-height);
       background: rgba(27, 25, 36, .32);
       backdrop-filter: blur(2px);
       opacity: 0;
@@ -1990,7 +1991,7 @@
       position: fixed;
       top: 0;
       right: 0;
-      bottom: 0;
+      bottom: var(--dev-console-height);
       width: 440px;
       max-width: 92vw;
       background: var(--bg-tint);
@@ -3841,6 +3842,7 @@
     .settings-backdrop {
       position: fixed;
       inset: 0;
+      bottom: var(--dev-console-height);
       background: rgba(27, 25, 36, .38);
       backdrop-filter: blur(3px);
       z-index: 60;
