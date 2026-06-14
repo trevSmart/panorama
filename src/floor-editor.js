@@ -6,6 +6,7 @@ import {
   makePlaceId,
 } from './data/floor-store.js';
 import { buildBuildingSVG } from './building-render.js';
+import { rotateLeftIconHtml, rotateRightIconHtml } from './ui/rotate-icons.js';
 import { exteriorEdges, interiorEdges, canonicalDivider, sanitizeOpenings, sanitizeDividers } from './data/wall-edges.js';
 
 /**
@@ -14,10 +15,15 @@ import { exteriorEdges, interiorEdges, canonicalDivider, sanitizeOpenings, sanit
  * floor-store and notifies the running views through globalThis.refreshFloors.
  */
 
-const GRID_C = 24, GRID_R = 16;
+const GRID_C = 23, GRID_R = 16;
 const SEED_BLOCK = 4; // new floors start as a SEED_BLOCK × SEED_BLOCK patch
 const EDGE_TOOLS = ['door', 'window', 'divider', 'erase'];
 const UNDO_LIMIT = 10;
+
+const FE_SPLIT_KEY = 'panorama.feSplit';
+const FE_SPLIT_DEFAULT = 64;
+const FE_SPLIT_MIN = 40;
+const FE_SPLIT_MAX = 82;
 
 const key = (c, r) => `${c},${r}`;
 const parseKey = (k) => k.split(',').map(Number);
@@ -97,8 +103,74 @@ function loadWorkingPlaces() {
 export function registerFloorEditorPanel() {
   PanoramaWorkspace.registerPanelType({
     viewType: 'floor-editor',
-    defaultLabel: 'Editor de plantes',
+    defaultLabel: 'Floor editor',
     mount(container) { mountEditor(container); },
+  });
+}
+
+function loadFeSplit() {
+  try {
+    const v = parseFloat(localStorage.getItem(FE_SPLIT_KEY));
+    if (Number.isFinite(v)) return Math.min(FE_SPLIT_MAX, Math.max(FE_SPLIT_MIN, v));
+  } catch { /* ignore */ }
+  return FE_SPLIT_DEFAULT;
+}
+
+/** Drag-to-resize splitter between the grid (left) and sidebar (right). */
+function attachFeResizer(container) {
+  const layout = container.querySelector('.fe-layout');
+  const handle = container.querySelector('.fe-resizer');
+  if (!layout || !handle) return;
+
+  const apply = (pct) => layout.style.setProperty('--fe-split', pct + '%');
+  apply(loadFeSplit());
+
+  const pctFromEvent = (clientX) => {
+    const r = layout.getBoundingClientRect();
+    const pct = ((clientX - r.left) / r.width) * 100;
+    return Math.min(FE_SPLIT_MAX, Math.max(FE_SPLIT_MIN, pct));
+  };
+
+  let dragging = false;
+  const onMove = (e) => {
+    if (!dragging) return;
+    apply(pctFromEvent(e.clientX));
+    e.preventDefault();
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.classList.remove('fe-resizing');
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    const cur = parseFloat(layout.style.getPropertyValue('--fe-split'));
+    try { localStorage.setItem(FE_SPLIT_KEY, String(cur)); } catch { /* ignore */ }
+  };
+
+  handle.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    handle.classList.add('dragging');
+    document.body.classList.add('fe-resizing');
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    e.preventDefault();
+  });
+
+  handle.addEventListener('keydown', (e) => {
+    const step = e.key === 'ArrowLeft' ? -2 : e.key === 'ArrowRight' ? 2 : 0;
+    if (!step) return;
+    const cur = parseFloat(layout.style.getPropertyValue('--fe-split')) || loadFeSplit();
+    const next = Math.min(FE_SPLIT_MAX, Math.max(FE_SPLIT_MIN, cur + step));
+    apply(next);
+    try { localStorage.setItem(FE_SPLIT_KEY, String(next)); } catch { /* ignore */ }
+    e.preventDefault();
+  });
+
+  handle.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    apply(FE_SPLIT_DEFAULT);
+    try { localStorage.removeItem(FE_SPLIT_KEY); } catch { /* ignore */ }
   });
 }
 
@@ -142,7 +214,7 @@ function mountEditor(container) {
               <button class="fe-undo fe-icon-btn" disabled title="Desfer l'últim canvi (fins a ${UNDO_LIMIT} passos)" aria-label="Desfer">↩</button>
               <button class="fe-redo fe-icon-btn" disabled title="Refer el canvi des fet" aria-label="Refer">↪</button>
               <button class="fe-reset" disabled title="Descarta els canvis no desats i torna a l'última versió guardada">Restableix</button>
-              <button class="fe-save primary" title="Desa el disseny en aquest navegador">Desa</button>
+              <button class="fe-save primary" disabled title="Desa el disseny en aquest navegador">Desa</button>
             </div>
           </div>
           <div class="fe-grid-wrap">
@@ -150,6 +222,7 @@ function mountEditor(container) {
           </div>
           <div class="fe-hint">Amb <b>Àrea</b> arrossega per afegir. <b>Agent</b> afegeix o treu en clicar. Només <b>Esborra</b> elimina la resta.</div>
         </div>
+        <div class="fe-resizer" role="separator" aria-orientation="vertical" tabindex="0" title="Arrossega per ajustar l'amplada"></div>
         <aside class="fe-side">
           <section class="fe-places">
             <div class="fe-side-title">Llocs <button class="fe-add-place">+ Lloc</button></div>
@@ -158,8 +231,8 @@ function mountEditor(container) {
           <section class="fe-preview">
             <div class="fe-side-title">Previsualització
               <div class="fe-rotate">
-                <button data-rot="left" title="Gira 90° a l'esquerra">↺</button>
-                <button data-rot="right" title="Gira 90° a la dreta">↻</button>
+                <button data-rot="left" title="Gira 90° a l'esquerra">${rotateLeftIconHtml()}</button>
+                <button data-rot="right" title="Gira 90° a la dreta">${rotateRightIconHtml()}</button>
               </div>
             </div>
             <div class="fe-preview-canvas"></div>
@@ -175,6 +248,9 @@ function mountEditor(container) {
   const undoBtn = container.querySelector('.fe-undo');
   const redoBtn = container.querySelector('.fe-redo');
   const resetBtn = container.querySelector('.fe-reset');
+  const saveBtn = container.querySelector('.fe-save');
+
+  attachFeResizer(container);
 
   let savedSignature = '';
   let savedSnapshot = null;
@@ -284,18 +360,16 @@ function mountEditor(container) {
   /* ── preview (rAF-batched) ── */
   let previewQueued = false;
   function renderPreview() {
-    const decorated = curFloors().map((f) => {
-      const arr = toArrayFloor(f);
-      return {
-        name: arr.name,
-        cells: arr.cells,
-        cellset: new Set(f.cells),
-        assigned: arr.seats.map(([c, r]) => ({ c, r })),
-        openings: arr.openings,
-        dividers: arr.dividers,
-      };
-    });
-    previewEl.innerHTML = buildBuildingSVG(decorated, state.previewDir, { headroom: 10 });
+    const f = curFloor();
+    const arr = toArrayFloor(f);
+    previewEl.innerHTML = buildBuildingSVG([{
+      name: arr.name,
+      cells: arr.cells,
+      cellset: new Set(f.cells),
+      assigned: arr.seats.map(([c, r]) => ({ c, r })),
+      openings: arr.openings,
+      dividers: arr.dividers,
+    }], state.previewDir, { headroom: 10 });
   }
   function schedulePreview() {
     if (previewQueued) return;
@@ -316,7 +390,7 @@ function mountEditor(container) {
     }];
     const thumb = document.createElement('div');
     thumb.className = 'fe-floor-thumb';
-    thumb.innerHTML = buildBuildingSVG(decorated, state.previewDir, { headroom: 4, showLabels: false });
+    thumb.innerHTML = buildBuildingSVG(decorated, state.previewDir, { headroom: 4 });
     return thumb;
   }
 
@@ -850,6 +924,7 @@ function mountEditor(container) {
   function syncDirty() {
     state.dirty = layoutSignature() !== savedSignature;
     resetBtn.disabled = !state.dirty;
+    saveBtn.disabled = !state.dirty;
   }
   function setSavedBaseline() {
     savedSignature = layoutSignature();

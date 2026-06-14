@@ -114,6 +114,12 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
     return allAgents;
   }
 
+  /** Connected roster first, then the full Omni-enabled directory cache. */
+  function getAgentById(id) {
+    if (!id) return null;
+    return agents.find((a) => a.id === id) ?? allAgents.find((a) => a.id === id) ?? null;
+  }
+
   function getLegacyBindings() {
     return {
       AGENTS: agents,
@@ -149,7 +155,10 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
     capabilities: READ_ONLY_CAPABILITIES,
 
     async init() {
-      await refresh();
+      await Promise.all([
+        refresh(),
+        refreshAllAgents().catch((err) => console.warn('[Panorama] all-agents prefetch failed', err)),
+      ]);
       startPolling();
     },
 
@@ -166,9 +175,13 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
      * returns the connected-only list used by Operations (synchronous).
      */
     getAgents(opts) {
-      if (opts?.scope === 'all') return refreshAllAgents();
+      if (opts?.scope === 'all') {
+        if (allAgents.length) return Promise.resolve(allAgents.slice());
+        return refreshAllAgents();
+      }
       return agents;
     },
+    getAgentById,
     getQueues: () => queueState,
     refresh,
     subscribe(fn) {

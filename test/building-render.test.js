@@ -77,9 +77,10 @@ function renderedRearEdges(svg) {
   return edges;
 }
 
-function renderedLabelCenters(svg) {
-  return [...svg.matchAll(/<text x="([^"]+)" y="[^"]+" text-anchor="middle"[^>]*>([^<]+)<\/text>/g)]
-    .map((match) => ({ x: Number(match[1]), label: match[2] }));
+function buildWithMeta(floors, dir = 0, opts = {}) {
+  const meta = { anchors: [] };
+  const svg = buildBuildingSVG(floors, dir, { ...opts, meta });
+  return { svg, meta };
 }
 
 test('rotated room walls follow the screen-space rear perimeter', () => {
@@ -88,7 +89,7 @@ test('rotated room walls follow the screen-space rear perimeter', () => {
   const { gMaxC, gMaxR } = gridExtents(floors);
 
   for (const dir of [0, 1, 2, 3]) {
-    const actual = renderedRearEdges(buildBuildingSVG(floors, dir, { showLabels: false }));
+    const actual = renderedRearEdges(buildBuildingSVG(floors, dir));
     const expected = expectedRearEdges(floor, dir, gMaxC, gMaxR);
     assert.deepEqual(actual, expected, `dir ${dir}`);
   }
@@ -102,10 +103,23 @@ test('rear walls are skipped when floor cells continue farther behind them', () 
     assigned: [],
   };
 
-  const svg = buildBuildingSVG([floor], 0, { showLabels: false });
+  const svg = buildBuildingSVG([floor], 0);
   const edges = renderedRearEdges(svg);
 
   assert.equal(edges.has('68,17 34,34'), false);
+});
+
+test('floor label anchors follow editor list order — first floor sits highest on screen', () => {
+  const floors = [
+    makeRectRoom('Top floor', 6, 4),
+    makeRectRoom('Bottom floor', 6, 4),
+  ];
+  const { svg, meta } = buildWithMeta(floors, 0);
+  assert.doesNotMatch(svg, /<text[^>]*>TOP FLOOR<\/text>/);
+  assert.equal(meta.anchors.length, 2);
+  assert.match(meta.anchors[0].name, /Top floor/i);
+  assert.match(meta.anchors[1].name, /Bottom floor/i);
+  assert.ok(meta.anchors[0].y < meta.anchors[1].y, 'first list item should sit above the second');
 });
 
 test('rooms are centered by their projected footprint after rotation', () => {
@@ -115,9 +129,9 @@ test('rooms are centered by their projected footprint after rotation', () => {
   ];
 
   for (const dir of [0, 1, 2, 3]) {
-    const centers = renderedLabelCenters(buildBuildingSVG(floors, dir));
-    assert.equal(centers.length, 2, `dir ${dir}`);
-    assert.equal(centers[1].x, centers[0].x, `dir ${dir}`);
+    const { meta } = buildWithMeta(floors, dir);
+    assert.equal(meta.anchors.length, 2, `dir ${dir}`);
+    assert.equal(meta.anchors[1].x, meta.anchors[0].x, `dir ${dir}`);
   }
 });
 
@@ -129,7 +143,7 @@ test('a window opening on a visible rear edge draws a window frame', () => {
     assigned: [],
     openings: [{ c: 0, r: 0, edge: 'N', kind: 'window' }],
   };
-  const svg = buildBuildingSVG([floor], 0, { showLabels: false });
+  const svg = buildBuildingSVG([floor], 0);
   assert.match(svg, /class="opening opening-window"/);
 });
 
@@ -141,7 +155,7 @@ test('a door opening on a visible rear edge draws a door frame', () => {
     assigned: [],
     openings: [{ c: 0, r: 0, edge: 'O', kind: 'door' }],
   };
-  const svg = buildBuildingSVG([floor], 0, { showLabels: false });
+  const svg = buildBuildingSVG([floor], 0);
   assert.match(svg, /class="opening opening-door"/);
 });
 
@@ -153,7 +167,7 @@ test('an opening on a non-visible edge is not drawn', () => {
     assigned: [],
     openings: [{ c: 0, r: 0, edge: 'S', kind: 'window' }],
   };
-  const svg = buildBuildingSVG([floor], 0, { showLabels: false });
+  const svg = buildBuildingSVG([floor], 0);
   assert.doesNotMatch(svg, /class="opening/);
 });
 
@@ -170,7 +184,7 @@ test('openings draw on each dir\'s rear edges and not on front edges', () => {
         assigned: [],
         openings: [{ c: 0, r: 0, edge, kind: 'window' }],
       };
-      const svg = buildBuildingSVG([floor], dir, { showLabels: false });
+      const svg = buildBuildingSVG([floor], dir);
       const drawn = /class="opening/.test(svg);
       assert.equal(drawn, rear.includes(edge), `dir ${dir} edge ${edge}`);
     }
@@ -184,5 +198,5 @@ test('rendering without openings field is tolerated', () => {
     cellset: new Set(['0,0']),
     assigned: [],
   };
-  assert.doesNotThrow(() => buildBuildingSVG([floor], 0, { showLabels: false }));
+  assert.doesNotThrow(() => buildBuildingSVG([floor], 0));
 });

@@ -1,6 +1,7 @@
 import { handleOAuthCallback, ensureAuthenticated, beginLogin, isOAuthCallbackPath, getOAuthCallbackError, getOAuthSession, logout, initOAuthSessionStorage } from './auth/salesforce-oauth.js';
 import { buildPhotoProxyParams } from './data/agent-photos.js';
 import { installDataLayer, loadAppConfig } from './install-data.js';
+import { syncDropdownPanel } from './ui/dropdown-panel.js';
 
 function showBodyMessage(title, message, hint = '') {
   document.body.replaceChildren();
@@ -70,6 +71,7 @@ if (isOAuthCallbackPath()) {
       Scene3D: globalThis.Scene3D,
       activePanelEl: () => globalThis.Panorama?.activePanelEl?.(),
       queueCard: (q) => globalThis.queueCard?.(q),
+      refreshActiveDetail: () => globalThis.refreshActiveDetail?.(),
     });
   }
 
@@ -82,6 +84,7 @@ if (isOAuthCallbackPath()) {
         globalThis.updateRoomPanel?.();
       }
       globalThis.refreshFloors?.();
+      globalThis.refreshActiveDetail?.();
     });
   }
 
@@ -105,25 +108,33 @@ async function initUserMenu(runtimeConfig) {
   const menu = document.getElementById('userMenu');
   const nameEl = document.getElementById('userMenuName');
   const titleEl = document.getElementById('userMenuTitle');
+  let userMenuOpen = false;
+  let userMenuCloseTimeoutId = null;
+
+  const setUserMenuOpen = (open) => {
+    userMenuOpen = open;
+    avatar.setAttribute('aria-expanded', String(open));
+    userMenuCloseTimeoutId = syncDropdownPanel(menu, open, {
+      closeTimeoutId: userMenuCloseTimeoutId,
+    });
+  };
 
   // Toggle menu
   avatar.addEventListener('click', () => {
-    const isOpen = menu.classList.toggle('open');
-    avatar.setAttribute('aria-expanded', String(isOpen));
+    setUserMenuOpen(!userMenuOpen);
   });
   avatar.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); avatar.click(); }
   });
   document.addEventListener('click', (e) => {
     if (!document.getElementById('meWidget').contains(e.target)) {
-      menu.classList.remove('open');
-      avatar.setAttribute('aria-expanded', 'false');
+      setUserMenuOpen(false);
     }
   });
 
   // Menu actions
   document.getElementById('userMenuSettings').addEventListener('click', () => {
-    menu.classList.remove('open');
+    setUserMenuOpen(false);
     globalThis.Panorama?.openSettings?.();
   });
   document.getElementById('userMenuLogout').addEventListener('click', () => {
@@ -183,11 +194,11 @@ async function initUserMenu(runtimeConfig) {
 
     // Open Salesforce links use instanceUrl from the active OAuth session.
     openSalesforceItem.addEventListener('click', () => {
-      menu.classList.remove('open');
+      setUserMenuOpen(false);
       window.open(session.instanceUrl, '_blank', 'noopener');
     });
     openSalesforceSetupItem.addEventListener('click', () => {
-      menu.classList.remove('open');
+      setUserMenuOpen(false);
       window.open(`${session.instanceUrl}/lightning/setup/SetupOneHome/home`, '_blank', 'noopener');
     });
   } catch (err) {
@@ -196,11 +207,11 @@ async function initUserMenu(runtimeConfig) {
     const session = getOAuthSession();
     if (session?.instanceUrl) {
       openSalesforceItem.addEventListener('click', () => {
-        menu.classList.remove('open');
+        setUserMenuOpen(false);
         window.open(session.instanceUrl, '_blank', 'noopener');
       });
       openSalesforceSetupItem.addEventListener('click', () => {
-        menu.classList.remove('open');
+        setUserMenuOpen(false);
         window.open(`${session.instanceUrl}/lightning/setup/SetupOneHome/home`, '_blank', 'noopener');
       });
     }

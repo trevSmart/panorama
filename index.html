@@ -157,14 +157,20 @@
     }
 
     .ws-tab-close {
-      width: 18px;
-      height: 18px;
+      display: grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
       border-radius: 5px;
-      font-size: 14px;
+      font-size: 16px;
       line-height: 1;
       color: var(--faint);
       flex-shrink: 0;
       cursor: pointer
+    }
+
+    .ws-tab.on .ws-tab-close {
+      color: var(--accent)
     }
 
     .ws-tab:hover {
@@ -179,8 +185,60 @@
     }
 
     .ws-tab-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+      flex: 1
+    }
+
+    .ws-tab-label-text {
       overflow: hidden;
       text-overflow: ellipsis
+    }
+
+    .ws-tab-icon {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      line-height: 0
+    }
+
+    .ws-tab-icon-tile {
+      border-radius: 4px
+    }
+
+    .ws-tab-av {
+      position: relative;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      font-family: 'Space Grotesk';
+      font-weight: 600;
+      font-size: 8px;
+      color: #fff;
+      flex-shrink: 0
+    }
+
+    .ws-tab-av img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover
+    }
+
+    .ws-tab-av.av--initials {
+      position: relative
+    }
+
+    .ws-tab-av.av--initials .av-ini,
+    .ws-tab-av.av--initials>span {
+      font-size: 8px;
+      line-height: 1
     }
 
     .ws-tab-close:hover {
@@ -217,8 +275,26 @@
       z-index: 50
     }
 
+    .dropdown-panel {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-0.5rem);
+      transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
+      pointer-events: none
+    }
+
+    .dropdown-panel.is-open {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      transition: opacity .18s ease, transform .18s ease, visibility 0s linear 0s;
+      pointer-events: auto
+    }
+
     .ws-catalog-item {
-      display: block;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       width: 100%;
       text-align: left;
       padding: 8px 11px;
@@ -226,6 +302,11 @@
       font-size: 13px;
       font-weight: 500;
       color: var(--ink)
+    }
+
+    .ws-catalog-label {
+      flex: 1;
+      min-width: 0
     }
 
     .ws-catalog-item:hover {
@@ -311,22 +392,6 @@
     .qsearch-drop-body.has-scroll {
       overflow-y: auto;
       overscroll-behavior: contain
-    }
-
-    .qsearch-drop.dropdown-panel {
-      opacity: 0;
-      visibility: hidden;
-      transform: translateY(-0.5rem);
-      transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
-      pointer-events: none
-    }
-
-    .qsearch-drop.dropdown-panel.is-open {
-      opacity: 1;
-      visibility: visible;
-      transform: translateY(0);
-      transition: opacity .18s ease, transform .18s ease, visibility 0s linear 0s;
-      pointer-events: auto
     }
 
     .qsearch-hint,
@@ -457,7 +522,7 @@
 
     .clock {
       font-family: 'JetBrains Mono';
-      font-size: 13px;
+      font-size: 15px;
       color: var(--dim)
     }
 
@@ -472,6 +537,7 @@
       width: 29px;
       height: 29px;
       border-radius: 50%;
+      border: 1px solid var(--accent);
       background: linear-gradient(135deg, #0099DA, #6AC9F3);
       display: grid;
       place-items: center;
@@ -503,13 +569,9 @@
       box-shadow: 0 8px 24px rgba(0, 0, 0, .10);
       padding: 6px;
       z-index: 200;
-      display: none;
+      display: flex;
       flex-direction: column;
       gap: 2px
-    }
-
-    .user-menu.open {
-      display: flex
     }
 
     .user-menu-header {
@@ -554,6 +616,12 @@
 
     .user-menu-item:hover {
       background: var(--hover, rgba(0, 0, 0, .05))
+    }
+
+    .user-menu-item[aria-selected="true"],
+    .custom-select-option[aria-selected="true"] {
+      background: var(--accent-soft);
+      color: var(--accent)
     }
 
     .user-menu-item svg {
@@ -841,17 +909,65 @@
 
     .ops-summary {
       flex-shrink: 0;
-      padding: 22px 26px 18px;
+      padding: 16px 26px 14px;
       border-bottom: 1px solid var(--line);
-      background: var(--bg-tint)
+      background: var(--bg-tint);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px 32px
+    }
+
+    .ops-summary .verdict {
+      flex: 1 1 auto;
+      min-width: 0
     }
 
     .ops-summary .verdict h1 {
-      font-size: 34px
+      font-size: 28px
+    }
+
+    .ops-summary .verdict .vdot {
+      margin-top: 7px
+    }
+
+    .ops-summary .vsub {
+      font-size: 14px;
+      margin-top: 5px;
+      max-width: 480px
+    }
+
+    .ops-summary .vmeta {
+      margin-top: 7px;
+      font-size: 12px
     }
 
     .ops-summary .pillars {
-      margin-top: 18px
+      margin-top: 0;
+      flex: 0 0 auto;
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 10px;
+      justify-content: flex-end;
+      align-self: center
+    }
+
+    .ops-summary .pillar {
+      flex: 0 0 auto;
+      min-width: 92px;
+      padding: 10px 12px
+    }
+
+    .ops-summary .pillar .pv {
+      font-size: 22px
+    }
+
+    .ops-summary .pillar .pv.long {
+      font-size: 16px
+    }
+
+    .ops-summary .pillar .ps {
+      font-size: 11px
     }
 
     .ops-layout {
@@ -869,7 +985,8 @@
       background: var(--bg-tint)
     }
 
-    .ops-resizer {
+    .ops-resizer,
+    .fe-resizer {
       position: relative;
       width: 0;
       align-self: stretch;
@@ -879,7 +996,8 @@
       z-index: 5
     }
 
-    .ops-resizer::before {
+    .ops-resizer::before,
+    .fe-resizer::before {
       content: "";
       position: absolute;
       top: 0;
@@ -888,7 +1006,8 @@
       width: 11px
     }
 
-    .ops-resizer::after {
+    .ops-resizer::after,
+    .fe-resizer::after {
       content: "";
       position: absolute;
       top: 50%;
@@ -903,17 +1022,22 @@
     }
 
     .ops-resizer:hover::after,
-    .ops-resizer.dragging::after {
+    .ops-resizer.dragging::after,
+    .fe-resizer:hover::after,
+    .fe-resizer.dragging::after {
       opacity: 1;
       background: var(--accent, var(--line))
     }
 
     .ops-resizer:hover,
-    .ops-resizer.dragging {
+    .ops-resizer.dragging,
+    .fe-resizer:hover,
+    .fe-resizer.dragging {
       border-right-color: var(--accent, var(--line))
     }
 
-    body.ops-resizing {
+    body.ops-resizing,
+    body.fe-resizing {
       cursor: col-resize;
       user-select: none
     }
@@ -936,7 +1060,7 @@
       margin-top: 0
     }
 
-    .ops-building .room-canvas svg {
+    .ops-building .room-canvas-stage {
       max-width: 100%
     }
 
@@ -1381,10 +1505,13 @@
 
     .chan .c {
       flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
       background: var(--surface-2);
       border-radius: 8px;
-      padding: 6px 0;
-      text-align: center
+      padding: 4px 6px
     }
 
     .chan .c .ic {
@@ -1415,7 +1542,7 @@
     }
 
     .chan .c .sf-icon-tile {
-      margin: 0 auto 2px;
+      margin: 0;
       border-radius: 4px
     }
 
@@ -1446,7 +1573,7 @@
       font-family: 'JetBrains Mono';
       font-size: 12px;
       font-weight: 500;
-      margin-top: 1px
+      line-height: 1
     }
 
     .chan .c.active {
@@ -1692,10 +1819,19 @@
       z-index: 2
     }
 
-    .dr-close {
+    .dr-head-actions {
       position: absolute;
       top: 18px;
       right: 18px;
+      display: flex;
+      gap: 6px
+    }
+
+    .drawer .dr-head {
+      padding-right: 88px
+    }
+
+    .dr-icon-btn {
       width: 30px;
       height: 30px;
       border-radius: 8px;
@@ -1707,9 +1843,33 @@
       transition: .15s
     }
 
-    .dr-close:hover {
+    .dr-icon-btn:hover {
       color: var(--ink);
       border-color: var(--line-2)
+    }
+
+    .view-detail {
+      height: calc(100vh - 58px);
+      overflow-y: auto;
+      background: var(--bg-tint)
+    }
+
+    .view-detail .detail-panel {
+      max-width: 1080px;
+      margin: 0 auto
+    }
+
+    .view-detail .dr-head {
+      padding: 26px 26px 22px
+    }
+
+    .view-detail .dr-body {
+      padding: 22px 26px 70px
+    }
+
+    .view-detail .dr-actions {
+      padding-left: 26px;
+      padding-right: 26px
     }
 
     .dr-id {
@@ -1872,6 +2032,61 @@
 
     .assigned-queue-empty {
       padding: 8px 0 2px
+    }
+
+    .queue-drawer-pressure {
+      margin-top: 2px
+    }
+
+    .queue-agent-list {
+      display: grid;
+      gap: 8px
+    }
+
+    .queue-agent-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      text-align: left;
+      transition: .15s var(--ease)
+    }
+
+    .queue-agent-row:hover {
+      border-color: var(--line-2);
+      box-shadow: var(--shadow);
+      transform: translateY(-1px)
+    }
+
+    .queue-agent-av {
+      position: relative;
+      flex-shrink: 0
+    }
+
+    .queue-agent-copy {
+      min-width: 0;
+      flex: 1
+    }
+
+    .queue-agent-name {
+      font-size: 13px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .queue-agent-role {
+      color: var(--dim);
+      font-size: 12px;
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
     }
 
     .stat-grid {
@@ -2050,12 +2265,40 @@
       justify-content: center
     }
 
-    .room-canvas svg {
+    .room-canvas-stage {
+      position: relative;
       width: 100%;
-      max-width: 880px;
-      height: auto;
+      max-width: 880px
+    }
+
+    .room-canvas-stage svg {
+      width: 100%;
+      height: 100%;
+      display: block;
       overflow: visible;
       transition: opacity .15s var(--ease)
+    }
+
+    .floor-labels {
+      position: absolute;
+      inset: 0;
+      pointer-events: none
+    }
+
+    .floor-label {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      font-family: Inter, sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(27, 25, 36, .55);
+      text-shadow: 0 0 3px rgba(247, 246, 243, .9), 0 0 3px rgba(247, 246, 243, .9)
+    }
+
+    .ops-building .room-canvas-stage {
+      max-width: 100%
     }
 
     .seat polygon {
@@ -2278,6 +2521,12 @@
       padding: 2px
     }
 
+    .rotate-icon {
+      width: 16px;
+      height: 16px;
+      display: block
+    }
+
     .bldg-compass button {
       width: 24px;
       height: 24px;
@@ -2342,6 +2591,16 @@
       .ops-resizer {
         display: none
       }
+
+      .ops-summary {
+        flex-direction: column;
+        align-items: stretch
+      }
+
+      .ops-summary .pillars {
+        flex-wrap: wrap;
+        justify-content: flex-end
+      }
     }
 
     @media (max-width:880px) {
@@ -2350,7 +2609,13 @@
       }
 
       .ops-summary .verdict h1 {
-        font-size: 28px
+        font-size: 24px
+      }
+
+      .ops-summary .pillars {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        justify-content: stretch
       }
 
       .room-legend {
@@ -2393,14 +2658,19 @@
     .fe-layout {
       flex: 1;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 480px;
+      grid-template-columns: minmax(320px, var(--fe-split, 64%)) 18px minmax(240px, 1fr);
       grid-template-rows: minmax(0, 1fr);
-      gap: 18px;
+      gap: 0;
       align-items: stretch;
       overflow: hidden;
       padding: 18px 26px;
       min-height: 0;
       max-width: 100%
+    }
+
+    .fe-layout .fe-resizer {
+      width: auto;
+      border-right: none
     }
 
     .fe-main {
@@ -2487,6 +2757,18 @@
       color: var(--accent)
     }
 
+    .fe-tools button[data-tool="erase"].on {
+      background: var(--alert-soft);
+      border-color: var(--alert);
+      color: var(--alert)
+    }
+
+    .fe-tools button[data-tool="erase"].on:hover {
+      background: var(--alert-soft);
+      border-color: var(--alert);
+      color: var(--alert)
+    }
+
     .fe-actions .fe-icon-btn {
       display: grid;
       place-items: center;
@@ -2497,14 +2779,25 @@
       line-height: 1
     }
 
+    .fe-actions .fe-undo,
+    .fe-actions .fe-redo {
+      transform: scaleY(-1)
+    }
+
     .fe-actions .fe-save.primary {
       background: var(--accent);
       border-color: var(--accent);
       color: #fff
     }
 
-    .fe-actions .fe-save.primary:hover {
+    .fe-actions .fe-save.primary:not(:disabled):hover {
       filter: brightness(1.08)
+    }
+
+    .fe-actions .fe-save.primary:disabled {
+      background: var(--surface);
+      border-color: var(--line);
+      color: var(--dim)
     }
 
     .fe-actions button:disabled {
@@ -3142,6 +3435,10 @@
         overflow-y: auto
       }
 
+      .fe-resizer {
+        display: none
+      }
+
       .fe-main,
       .fe-side {
         overflow: visible;
@@ -3368,6 +3665,42 @@
       box-shadow: 0 0 0 3px var(--accent-soft)
     }
 
+    .custom-select {
+      position: relative;
+      display: inline-block
+    }
+
+    .custom-select-native {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0
+    }
+
+    .custom-select-trigger {
+      display: block;
+      width: 100%;
+      text-align: left
+    }
+
+    .custom-select-trigger:disabled {
+      opacity: .55;
+      cursor: not-allowed
+    }
+
+    .custom-select-menu {
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      min-width: 100%;
+      z-index: 10
+    }
+
     .settings-toggle {
       position: relative;
       width: 40px;
@@ -3552,9 +3885,10 @@
     <div class="brand" onclick="Panorama.home()"><img src="assets/panorama-logo.png" alt="Panorama" class="brand-logo"></div>
     <div class="ws-tabs-wrap">
       <div class="ws-tabs" id="wsTabs" role="tablist" aria-label="Workspace panels"></div>
-      <div class="ws-catalog" id="wsCatalog" hidden role="menu" aria-label="Open panel"></div>
+      <div class="ws-catalog dropdown-panel" id="wsCatalog" hidden role="menu" aria-label="Open panel"></div>
     </div>
     <div class="top-right">
+      <span class="clock mono" id="clock">--:--:--</span>
       <div class="qsearch" id="globalSearch">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="7" />
@@ -3567,10 +3901,9 @@
           </div>
         </div>
       </div>
-      <span class="clock mono" id="clock">--:--:--</span>
       <div class="me" id="meWidget">
         <div class="av" id="meAvatar" role="button" aria-haspopup="true" aria-expanded="false" tabindex="0">MR</div>
-        <div class="user-menu" id="userMenu" role="menu">
+        <div class="user-menu dropdown-panel" id="userMenu" role="menu" hidden>
           <div class="user-menu-header">
             <div class="user-menu-name" id="userMenuName">—</div>
             <div class="user-menu-title" id="userMenuTitle"></div>
@@ -3933,7 +4266,7 @@
     </div><!-- /.settings-modal -->
   </div><!-- /.settings-backdrop -->
 
-  <script src="src/workspace-shell.js"></script>
+  <script type="module" src="src/workspace-shell.js"></script>
   <script type="module" src="src/app.js"></script>
 </body>
 

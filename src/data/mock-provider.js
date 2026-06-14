@@ -31,6 +31,12 @@ function getAgents(opts) {
   return agents;
 }
 
+/** @param {string} id */
+function getAgentById(id) {
+  if (!id) return null;
+  return agents.find((a) => a.id === id) ?? null;
+}
+
 /** @returns {import('./types.js').Queue[]} */
 function getQueues() {
   return queueState;
@@ -85,6 +91,7 @@ function startSimulation(hooks) {
       hooks.updateOverviewMetrics?.();
       hooks.updateAgents?.();
     }
+    hooks.refreshActiveDetail?.();
     hooks.Scene3D?.update(16);
   }
 
@@ -101,6 +108,7 @@ function startSimulation(hooks) {
       const qg = root?.querySelector('#sec-queues .qgrid');
       if (qg && hooks.queueCard) qg.innerHTML = queueState.map(hooks.queueCard).join('');
     }
+    hooks.refreshActiveDetail?.();
   }
 
   function maybeFlag() {
@@ -119,6 +127,7 @@ function startSimulation(hooks) {
         hooks.updateAgents?.();
         hooks.updateRoomPanel?.();
       }
+      hooks.refreshActiveDetail?.();
     }
   }
 
@@ -133,6 +142,7 @@ export function createMockProvider() {
     source: 'mock',
     capabilities: MOCK_CAPABILITIES,
     getAgents,
+    getAgentById,
     getQueues,
     getLegacyBindings,
     startSimulation,

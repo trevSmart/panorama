@@ -28,11 +28,10 @@ export function gridExtents(floors) {
 
 export function computeFloorLayout(floors, dir, gMaxC, gMaxR, opts) {
   const { minH, maxH, TH, beaconPad, marginMin, slabT = 0 } = opts;
-  const offsets = [0];
   const gaps = [];
   for (let i = 0; i < floors.length - 1; i++) {
-    const lower = floors[i];
-    const upper = floors[i + 1];
+    const upper = floors[i];
+    const lower = floors[i + 1];
     // Use the lower floor's full cell extent (not just its seats) so detached
     // areas painted in the editor can never interleave with the floor above.
     const lowerSums = lower.cells.map(([c, r]) => isoDepthSum(c, r, dir, gMaxC, gMaxR));
@@ -42,7 +41,11 @@ export function computeFloorLayout(floors, dir, gMaxC, gMaxR, opts) {
     const geoDelta = (maxCell - minLower) * TH;
     const gap = geoDelta + TH + maxH + beaconPad + marginMin + slabT;
     gaps.push(gap);
-    offsets.push(offsets[offsets.length - 1] - gap);
+  }
+  // Index 0 is the top item in the floor editor list — render it highest on screen.
+  const offsets = new Array(floors.length).fill(0);
+  for (let i = floors.length - 2; i >= 0; i--) {
+    offsets[i] = offsets[i + 1] - gaps[i];
   }
   return { offsets, gaps };
 }
@@ -52,13 +55,12 @@ const EMPTY_SVG = '<svg viewBox="0 0 480 240" xmlns="http://www.w3.org/2000/svg"
 /**
  * @param {Array<{ name: string, cells: number[][], cellset: Set<string>, assigned: Array<{ c: number, r: number }>, openings?: Array<{ c: number, r: number, edge: string, kind: string }>, dividers?: Array<{ c: number, r: number, edge: string }> }>} floors
  * @param {number} dir 0-3 camera direction
- * @param {{ floorOffsets?: number[], seatParts?: Function, showLabels?: boolean }} [opts]
+ * @param {{ floorOffsets?: number[], seatParts?: Function, meta?: { anchors: Array<{ name: string, x: number, y: number }>, viewBox: { x: number, y: number, w: number, h: number } } }} [opts]
  * @returns {string} SVG markup
  */
 export function buildBuildingSVG(floors, dir = 0, opts = {}) {
   if (!floors?.length || !floors.some(f => f.cells.length)) return EMPTY_SVG;
   const TW = 34, TH = 17, minH = 16, maxH = 88, THK = 6;
-  const { showLabels = true } = opts;
   const { gMaxC, gMaxR } = gridExtents(floors);
   const floorOffsets = opts.floorOffsets
     || computeFloorLayout(floors, dir, gMaxC, gMaxR, { minH, maxH, TH, beaconPad: 24, marginMin: 14, marginBase: 28 }).offsets;
@@ -126,6 +128,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
   const seatParts = opts.seatParts || ((s, ctx) => ({ cube: vacantCircle(ctx.x, ctx.y) }));
 
   const LABEL_GAP = 28;
+  if (opts.meta) opts.meta.anchors = [];
   const floorXBounds = floors.map((f) => {
     let floorMinX = 1e9, floorMaxX = -1e9;
     f.cells.forEach(([c, r]) => {
@@ -140,7 +143,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
   const buildingCenterX = (buildingMinX + buildingMaxX) / 2;
   const floorXShifts = floorXBounds.map((b) => (b ? buildingCenterX - (b.minX + b.maxX) / 2 : 0));
 
-  let allShadows = '', body = '', labels = '';
+  let allShadows = '', body = '';
   floors.forEach((f, i) => {
     if (!f.cells.length) return;
     const yOff = floorOffsets[i]; const has = (c, r) => f.cellset.has(c + ',' + r);
@@ -255,17 +258,18 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
     });
     if (fGroundShadow) allShadows += `<g filter="url(#floordrop)" fill="rgba(27,25,36,.1)">${fGroundShadow}</g>`;
     body += fWalls + fGround + fGlow + fCubes;
-    if (showLabels && f.name) {
+    if (opts.meta && f.name) {
       const labelY = fContentTop - LABEL_GAP;
       const labelX = (fMinX + fMaxX) / 2;
-      ext(fMinX, labelY - 16); ext(fMaxX, labelY);
-      labels += `<text x="${labelX}" y="${labelY}" text-anchor="middle" font-size="11" font-family="Inter,sans-serif" font-weight="600" letter-spacing="1.5" fill="rgba(27,25,36,.55)" paint-order="stroke" stroke="rgba(247,246,243,.9)" stroke-width="3">${escapeXml(f.name.toUpperCase())}</text>`;
+      opts.meta.anchors.push({ name: f.name, x: labelX, y: labelY });
     }
   });
-  const pad = 30, vb = `${minX - pad} ${minY - pad} ${(maxX - minX) + pad * 2} ${(maxY - minY) + pad * 2}`;
-  return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="bg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="9"/></filter><filter id="floordrop" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="16"/></filter></defs><g>${allShadows}${body}</g><g>${labels}</g></svg>`;
-}
-
-function escapeXml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const pad = 30;
+  const vbW = (maxX - minX) + pad * 2;
+  const vbH = (maxY - minY) + pad * 2;
+  const vb = `${minX - pad} ${minY - pad} ${vbW} ${vbH}`;
+  if (opts.meta) {
+    opts.meta.viewBox = { x: minX - pad, y: minY - pad, w: vbW, h: vbH };
+  }
+  return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="bg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="9"/></filter><filter id="floordrop" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="16"/></filter></defs><g>${allShadows}${body}</g></svg>`;
 }

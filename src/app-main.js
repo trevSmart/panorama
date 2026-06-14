@@ -7,6 +7,16 @@ import { registerFloorEditorPanel } from './floor-editor.js';
 import { buildAgentQueueSummaries } from './agent-queue-summary.js';
 import { channelIconTileHtml, channelIconName, sfIconColor, sfIconTileHtml } from './ui/sf-icons.js';
 import { formatDurationMin, formatDurationSec, formatWorkTimer } from './ui/duration.js';
+import {
+  closeDetailDrawer,
+  initDetailDrawerChrome,
+  openDetailDrawer,
+  refreshActiveDetail,
+  registerDetailKind,
+  registerDetailPanelType,
+} from './ui/detail-panel.js';
+import { syncDropdownPanel } from './ui/dropdown-panel.js';
+import { enhanceAllSelects, syncCustomSelect } from './ui/custom-select.js';
 
 /* ───────── Helpers ───────── */
 const initials = n => n.split(' ').map(w => w[0]).slice(0, 2).join('');
@@ -102,6 +112,19 @@ function verdictHTML(h) {
 function pillarsHTML(h) { return h.pillars.map(p => `<button class="pillar ${p.state !== 'ok' ? 'attn ' + p.state : ''}" onclick="Panorama.scrollTo('${p.view}')"><span class="arrow">→</span><div class="pl">${p.lbl}</div><div class="pv${String(p.val).includes(' ') ? ' long' : ''}">${p.val}</div><div class="ps"><i style="background:var(--${p.state})"></i><span>${p.msg[p.state]}</span></div></button>`).join(''); }
 function roomStats() { let occ = 0, hot = 0; FLOORS.forEach(f => f.assigned.forEach(s => { const a = s.agent; if (a && a.status !== 'offline') { occ++; const L = a.max ? a.used / a.max : 0; if (L >= .8) hot++; } })); return { occ, hot }; }
 function statsHTML(s) { return `<b class="mono">${s.occ}</b> ocupats · <b class="mono" style="color:${s.hot ? 'var(--alert)' : 'var(--ink)'}">${s.hot}</b> punts calents`; }
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function buildingCanvasHTML(b) {
+  if (!b.viewBox) return b.svg;
+  const { x, y, w, h } = b.viewBox;
+  const labels = (b.anchors || []).map((a) => {
+    const left = ((a.x - x) / w) * 100;
+    const top = ((a.y - y) / h) * 100;
+    return `<span class="floor-label" style="left:${left}%;top:${top}%">${escapeHtml(String(a.name).toUpperCase())}</span>`;
+  }).join('');
+  return `<div class="room-canvas-stage" style="aspect-ratio:${w} / ${h}">${b.svg}<div class="floor-labels" aria-hidden="true">${labels}</div></div>`;
+}
 function legendHTML() { return `<div class="lg-group"><div class="lt">Equips</div><div class="lg-list">${Object.entries(TEAM_COLOR).map(([t, c]) => `<div class="li"><i style="width:11px;height:11px;border-radius:3px;background:${rgbc(c)}"></i>${t}</div>`).join('')}</div></div>`; }
 function roomStageHTML(compact) {
   const b = buildBuilding();
@@ -111,15 +134,9 @@ function roomStageHTML(compact) {
     html: `<div class="${cls}">
         <div class="bldg-head">
           <span class="bcap">La sala · totes les plantes</span>
-          <div style="display:flex;align-items:center;gap:12px">
-            <span class="bstats">${statsHTML(s)}</span>
-            <div class="bldg-compass">
-              <button onclick="rotateBuildDir(-1)" title="Gira 90° a l'esquerra">↺</button>
-              <button onclick="rotateBuildDir(1)" title="Gira 90° a la dreta">↻</button>
-            </div>
-          </div>
+          <span class="bstats">${statsHTML(s)}</span>
         </div>
-        <div class="room-canvas">${b.svg}</div>
+        <div class="room-canvas">${buildingCanvasHTML(b)}</div>
         <div class="room-legend">${legendHTML()}</div>
       </div>`,
     stats: s
@@ -131,7 +148,7 @@ function updateRoomPanel() {
   if (!canvas) return;
   syncTowerDisplayH();
   const b = buildBuilding();
-  canvas.innerHTML = b.svg;
+  canvas.innerHTML = buildingCanvasHTML(b);
   const statsEl = root.querySelector('.bldg-head .bstats');
   if (statsEl) statsEl.innerHTML = statsHTML({ occ: b.occupied, hot: b.hot });
   attachSeats(root);
@@ -202,6 +219,7 @@ function renderDetail(container) {
     </div>`;
   attachSeats(container);
   attachOpsResizer(container);
+  attachQueueCardClicks(container);
   container.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { filter.status = b.dataset.st; updateAgents(); });
   container.querySelectorAll('#agentGrid .card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
   startBuildingAnimation();
@@ -209,6 +227,7 @@ function renderDetail(container) {
 
 /** Drag-to-resize splitter between the room (left) and data (right) columns. */
 const OPS_SPLIT_KEY = 'panorama.opsSplit';
+const OPS_SPLIT_DEFAULT = 40;
 const OPS_SPLIT_MIN = 24; // % of layout width
 const OPS_SPLIT_MAX = 64;
 
@@ -217,7 +236,7 @@ function loadOpsSplit() {
     const v = parseFloat(localStorage.getItem(OPS_SPLIT_KEY));
     if (Number.isFinite(v)) return Math.min(OPS_SPLIT_MAX, Math.max(OPS_SPLIT_MIN, v));
   } catch { /* ignore */ }
-  return 40;
+  return OPS_SPLIT_DEFAULT;
 }
 
 function attachOpsResizer(container) {
@@ -269,6 +288,12 @@ function attachOpsResizer(container) {
     apply(next);
     try { localStorage.setItem(OPS_SPLIT_KEY, String(next)); } catch { /* ignore */ }
     e.preventDefault();
+  });
+
+  handle.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    apply(OPS_SPLIT_DEFAULT);
+    try { localStorage.removeItem(OPS_SPLIT_KEY); } catch { /* ignore */ }
   });
 }
 
@@ -416,7 +441,7 @@ function agentCard(a) {
   const st = STATUS[a.status];
   const chanCells = ['veu', 'chat', 'wa', 'cas'].map(c => {
     const n = a.chans[c] || 0;
-    return `<div class="c ${n > 0 ? 'active' : 'zero'}">${channelIconTileHtml(c, { size: 22 })}<div class="n">${n}</div></div>`;
+    return `<div class="c ${n > 0 ? 'active' : 'zero'}">${channelIconTileHtml(c, { size: 21 })}<div class="n">${n}</div></div>`;
   }).join('');
   const showChans = !isLiveDataMode() || ['veu', 'chat', 'wa', 'cas'].some((c) => (a.chans?.[c] || 0) > 0);
   const segs = Array.from({ length: a.max }).map((_, i) => `<span style="flex:1;background:${i < a.used ? st.c : 'transparent'}"></span>`).join('');
@@ -438,7 +463,7 @@ function agentCard(a) {
 }
 function queueCard(q) {
   const cap = q.online * 5 || 1, p = Math.min(1, q.backlog / cap);
-  return `<div class="qcard" onclick="document.getElementById('sec-agents').scrollIntoView({behavior:'smooth'})">
+  return `<div class="qcard" data-id="${q.id}" role="button" tabindex="0">
     <div class="qtop"><span class="qn" style="color:${q.color}">${sfIconTileHtml('queue', { size: 22, bg: q.color })}${q.name}</span><span class="qa"><i></i><b class="mono">${q.online}</b> online</span></div>
     <div class="pressure"><span style="width:${Math.max(6, p * 100)}%;background:${pColor(p)}"></span></div>
     <div class="qmetrics">
@@ -446,6 +471,21 @@ function queueCard(q) {
       <div class="m"><div class="v ${q.longest > 150 ? 'warn' : ''}">${formatDurationSec(q.longest, { short: true })}</div><div class="k">Espera màx</div></div>
       <div class="m"><div class="v">${formatDurationSec(q.avg, { short: true })}</div><div class="k">Espera mitj.</div></div>
     </div></div>`;
+}
+function attachQueueCardClicks(container) {
+  if (container.dataset.queueClicks) return;
+  container.dataset.queueClicks = '1';
+  container.addEventListener('click', (e) => {
+    const card = e.target.closest('.qcard[data-id]');
+    if (card && container.contains(card)) openQueueDrawer(card.dataset.id);
+  });
+  container.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const card = e.target.closest('.qcard[data-id]');
+    if (!card || !container.contains(card)) return;
+    e.preventDefault();
+    openQueueDrawer(card.dataset.id);
+  });
 }
 function agentGridHTML() {
   let list = AGENTS.slice();
@@ -517,13 +557,24 @@ function renderPlaceholder(container, v) {
   container.innerHTML = `<div class="view"><div class="placeholder"><h3>${P[v][0]}</h3><p>${P[v][1]}</p><p style="margin-top:14px;color:var(--accent)">Next iteration screen.</p></div></div>`;
 }
 
-/* ───────── Drawer ───────── */
+/* ───────── Detail panels (drawer + full-screen tab) ───────── */
 function timelineLane(b) { return `<div class="tl-track">${b.map(x => `<div class="tl-block" style="left:${x.l}%;width:${x.w}%;background:${x.c}">${x.w > 9 ? x.t : ''}</div>`).join('')}<div class="tl-now" style="left:88%"></div></div>`; }
-function openDrawer(id) {
-  const a = AGENTS.find(x => x.id === id); if (!a) return;
+function detailEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function findAgent(id) {
+  const provider = globalThis.PanoramaProvider;
+  if (provider?.getAgentById) return provider.getAgentById(id);
+  return AGENTS.find((x) => x.id === id);
+}
+
+function renderAgentDetail(config) {
+  const a = findAgent(config.id);
+  if (!a) return null;
   const st = STATUS[a.status];
   const live = isLiveDataMode();
-  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const esc = detailEsc;
   const items = live ? [] : Array.from({ length: Math.max(1, a.used || 1) }).map(() => { const w = { ...pick(WORK_KINDS) }; if (w.t === 'Cas #') w.t = 'Cas #' + rnd(48210, 48999); return { ...w, age: rnd(1, 28) }; });
   const stB = [{ l: 0, w: 22, c: '#B7B3C0', t: 'Desconnectat' }, { l: 22, w: 30, c: '#15A06A', t: 'Online' }, { l: 52, w: 14, c: '#D9981F', t: 'Pausa' }, { l: 66, w: 34, c: '#15A06A', t: 'Online' }];
   const wkB = [{ l: 24, w: 16, c: '#6A5BE8', t: 'Cas' }, { l: 42, w: 9, c: '#E05641', t: '☎' }, { l: 55, w: 11, c: '#15A06A', t: '💬' }, { l: 70, w: 18, c: '#6A5BE8', t: '☎' }, { l: 90, w: 8, c: '#D9981F', t: '' }];
@@ -574,27 +625,135 @@ function openDrawer(id) {
       }).join('')}</div></section>`
       : '')
     : `<section><h4>Feina activa (${items.length})</h4><div class="worklist">${items.map(w => `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${w.t}</div><div class="m">${CH_LBL[w.channelKey] || 'Canal'}</div></div><span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: qById(w.q).color })}<span style="color:${qById(w.q).color}">${qById(w.q).name}</span></span><span class="age mono">${formatDurationMin(w.age)}</span></div>`).join('')}</div></section>`;
-  document.getElementById('drawer').innerHTML = `
-    <div class="dr-head"><button class="dr-close" onclick="closeDrawer()">✕</button>
-      <div class="dr-id"><div class="ring ${a.status === 'busy' ? 'breathe' : ''}" style="--st:${st.c};width:58px;height:58px">${ringSVG(a.used, a.max, st.c, 58)}${agentRingFaceHTML(a)}</div>
-        <div><div class="nm">${a.name}</div><div class="rl">${a.role}</div><div class="status-pill" style="color:${st.c};background:color-mix(in srgb,${st.c} 12%,transparent)"><i style="background:${st.c}"></i>${st.lbl}</div></div></div>
-    </div>
-    <div class="dr-actions">${drawerActions}</div>
-    <div class="dr-body">
-      <section><h4>Resum d'activitat</h4><div class="stat-grid">
+
+  return {
+    head: `<div class="dr-id"><div class="ring ${a.status === 'busy' ? 'breathe' : ''}" style="--st:${st.c};width:58px;height:58px">${ringSVG(a.used, a.max, st.c, 58)}${agentRingFaceHTML(a)}</div>
+        <div><div class="nm">${esc(a.name)}</div><div class="rl">${esc(a.role)}</div><div class="status-pill" style="color:${st.c};background:color-mix(in srgb,${st.c} 12%,transparent)"><i style="background:${st.c}"></i>${st.lbl}</div></div></div>`,
+    actions: drawerActions,
+    body: `<section><h4>Resum d'activitat</h4><div class="stat-grid">
         <div class="s"><div class="v" style="color:${st.c}">${a.used}/${a.max}</div><div class="k">Capacitat</div></div>
         <div class="s"><div class="v">${a.status === 'offline' ? '—' : formatDurationMin(a.loginMin)}</div><div class="k">Loguejat</div></div>
         ${live ? '' : `<div class="s"><div class="v">${a.lastAccept == null ? '—' : formatDurationMin(a.lastAccept)}</div><div class="k">Última feina</div></div>`}
       </div></section>
       <section><h4>Assigned queues</h4>${assignedQueuesHTML}</section>
       ${timelineSection}
-      ${workSection}
-    </div>`;
-  document.getElementById('drawer').classList.add('show'); document.getElementById('scrim').classList.add('show');
+      ${workSection}`,
+  };
 }
-function closeDrawer() { document.getElementById('drawer').classList.remove('show'); document.getElementById('scrim').classList.remove('show'); }
-document.getElementById('scrim').onclick = closeDrawer;
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+function openDrawer(id) {
+  openDetailDrawer({ kind: 'agent', id });
+}
+function agentsInQueue(queueId) {
+  return AGENTS.filter((a) => (a.queues || []).includes(queueId));
+}
+function activeWorkInQueue(q, live) {
+  const members = agentsInQueue(q.id);
+  if (live) {
+    const items = [];
+    members.forEach((a) => {
+      (Array.isArray(a.work) ? a.work : []).forEach((w) => {
+        if (w.queueId === q.id || w.queue === q.name) items.push({ ...w, agent: a });
+      });
+    });
+    return items;
+  }
+  return members
+    .filter((a) => a.work && a.work.q === q.id)
+    .map((a) => ({ agent: a, work: a.work, ageMin: a.workSec }));
+}
+function renderQueueDetail(config) {
+  const q = queueState.find((x) => x.id === config.id);
+  if (!q) return null;
+  const live = isLiveDataMode();
+  const esc = detailEsc;
+  const cap = q.online * 5 || 1;
+  const pressure = Math.min(1, q.backlog / cap);
+  const members = agentsInQueue(q.id).slice().sort((a, b) => {
+    const order = { online: 0, busy: 1, away: 2, offline: 3 };
+    return (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.name.localeCompare(b.name);
+  });
+  const workItems = activeWorkInQueue(q, live);
+  const memberRows = members.length
+    ? members.map((a) => {
+      const st = STATUS[a.status] || STATUS.offline;
+      return `<button type="button" class="queue-agent-row" data-agent-id="${esc(a.id)}">
+        <div class="queue-agent-av">${agentAvatarHTML(a, 'ag-av')}<i class="ag-dot" style="background:${st.c}"></i></div>
+        <div class="queue-agent-copy"><div class="queue-agent-name">${esc(a.name)}</div><div class="queue-agent-role">${esc(a.role)}</div></div>
+        <span class="status-pill" style="color:${st.c};background:color-mix(in srgb,${st.c} 12%,transparent)"><i style="background:${st.c}"></i>${st.lbl}</span>
+      </button>`;
+    }).join('')
+    : '<div class="assigned-queue-empty">No agents assigned to this queue</div>';
+  const workRows = workItems.length
+    ? workItems.map((item) => {
+      const w = live ? item : item.work;
+      const a = item.agent;
+      const channelKey = w.channelKey || 'cas';
+      const label = live ? (w.label || 'Work item') : (w.t || 'Work item');
+      const detail = live
+        ? (w.subject || CH_LBL[channelKey] || w.channel || 'Work item')
+        : (CH_LBL[channelKey] || 'Work item');
+      const age = live ? w.ageMin : item.ageMin;
+      return `<button type="button" class="queue-agent-row" data-agent-id="${esc(a.id)}">
+        <div class="assigned-queue-work-icon">${channelIconTileHtml(channelKey, { size: 24 })}</div>
+        <div class="queue-agent-copy"><div class="queue-agent-name">${esc(label)}</div><div class="queue-agent-role">${esc(a.name)} · ${esc(detail)}</div></div>
+        ${age == null ? '' : `<span class="assigned-queue-work-age mono">${formatDurationMin(age)}</span>`}
+      </button>`;
+    }).join('')
+    : '<div class="assigned-queue-empty">No active work in this queue</div>';
+
+  return {
+    head: `<div class="dr-id">${sfIconTileHtml('queue', { size: 58, bg: q.color })}
+        <div><div class="nm">${esc(q.name)}</div><div class="rl">Queue</div>
+          <div class="status-pill" style="color:${q.color};background:color-mix(in srgb,${q.color} 12%,transparent)"><i style="background:${q.color}"></i>${q.online} agents online</div>
+        </div>
+      </div>`,
+    body: `<section><h4>Queue health</h4>
+        <div class="pressure queue-drawer-pressure"><span style="width:${Math.max(6, pressure * 100)}%;background:${pColor(pressure)}"></span></div>
+        <div class="stat-grid" style="margin-top:14px">
+          <div class="s"><div class="v ${q.backlog > 8 ? 'warn' : ''}">${q.backlog}</div><div class="k">Backlog</div></div>
+          <div class="s"><div class="v ${q.longest > 150 ? 'warn' : ''}">${formatDurationSec(q.longest, { short: true })}</div><div class="k">Longest wait</div></div>
+          <div class="s"><div class="v">${formatDurationSec(q.avg, { short: true })}</div><div class="k">Average wait</div></div>
+          <div class="s"><div class="v">${q.online}</div><div class="k">Online agents</div></div>
+        </div>
+      </section>
+      <section><h4>Assigned agents (${members.length})</h4><div class="queue-agent-list">${memberRows}</div></section>
+      <section><h4>Active work (${workItems.length})</h4><div class="queue-agent-list">${workRows}</div></section>`,
+    afterMount(root, _config, ctx) {
+      root.querySelectorAll('[data-agent-id]').forEach((el) => {
+        el.addEventListener('click', () => ctx.openAgent(el.dataset.agentId));
+      });
+    },
+  };
+}
+
+function openQueueDrawer(id) {
+  openDetailDrawer({ kind: 'queue', id });
+}
+
+function closeDrawer() {
+  closeDetailDrawer();
+}
+
+function agentTabIconHTML(a) {
+  if (!a) return sfIconTileHtml('user', { size: 18, className: 'sf-icon-tile ws-tab-icon-tile' });
+  return agentAvatarHTML(a, 'ws-tab-av');
+}
+
+registerDetailKind('agent', {
+  resolveLabel: (config) => findAgent(config.id)?.name || 'Agent',
+  resolveTabIcon: (config) => agentTabIconHTML(findAgent(config.id)),
+  render: renderAgentDetail,
+});
+registerDetailKind('queue', {
+  resolveLabel: (config) => queueState.find((q) => q.id === config.id)?.name || 'Queue',
+  resolveTabIcon: (config) => {
+    const q = queueState.find((x) => x.id === config.id);
+    return sfIconTileHtml('queue', { size: 18, bg: q?.color, className: 'sf-icon-tile ws-tab-icon-tile' });
+  },
+  render: renderQueueDetail,
+});
+initDetailDrawerChrome();
 
 /* ───────── Room — isometric workload map ───────── */
 function floorSeatLoads(f) {
@@ -652,9 +811,10 @@ function stepBuildingAnimation(dt) {
   return stepTowerDisplay(16, 88, dt);
 }
 function computeFloorStack(floors, opts) {
-  const y = [0];
-  for (let i = 0; i < floors.length - 1; i++) {
-    y.push(y[y.length - 1] + opts.slabT + opts.maxH + opts.beaconPad + opts.marginMin);
+  const step = opts.slabT + opts.maxH + opts.beaconPad + opts.marginMin;
+  const y = new Array(floors.length).fill(0);
+  for (let i = floors.length - 2; i >= 0; i--) {
+    y[i] = y[i + 1] + step;
   }
   return y;
 }
@@ -702,7 +862,7 @@ function setBuildDir(d) {
     saveCustomRoomDir(buildDir, FLOORS);
     fixedFloorLayout.offsets = null;
     const b = buildBuilding();
-    canvas.innerHTML = b.svg;
+    canvas.innerHTML = buildingCanvasHTML(b);
     attachSeats(root);
     canvas.style.transition = 'none';
     canvas.style.transform = `perspective(700px) rotateY(${inDeg}deg) scaleX(0.6)`;
@@ -734,7 +894,9 @@ function buildBuilding(dir) {
   const { gMaxC, gMaxR } = gridExtents(FLOORS);
   const floorOffsets = getFixedFloorOffsets(dir, gMaxC, gMaxR, minH, maxH, TH);
   let occupied = 0, hot = 0;
+  const meta = { anchors: [] };
   const svg = buildBuildingSVG(FLOORS, dir, {
+    meta,
     floorOffsets,
     seatParts(s, ctx) {
       const a = s.agent; const { x, y, TW, TH } = ctx;
@@ -748,7 +910,7 @@ function buildBuilding(dir) {
       return { glow, cube: ctx.tower(x, y, H, T, L, a.id, beacon) };
     },
   });
-  return { svg, occupied, hot };
+  return { svg, occupied, hot, anchors: meta.anchors, viewBox: meta.viewBox };
 }
 function attachSeats(root) {
   const canvas = root?.querySelector('.room-canvas');
@@ -774,11 +936,11 @@ function attachSeats(root) {
 }
 
 /* ───────── Workspace shell ───────── */
-const LEGACY_VIEW_MAP = { detail: 'operations', overview: 'operations' };
+const LEGACY_VIEW_MAP = { overview: 'operations' };
 
 PanoramaWorkspace.registerPanelType({
   viewType: 'operations',
-  defaultLabel: 'Operations',
+  defaultLabel: 'Home',
   mount(container) { renderDetail(container); },
   activate(container, config) {
     if (config.anchor) scrollToAnchor(config.anchor);
@@ -807,6 +969,7 @@ PanoramaWorkspace.registerPanelType({
 });
 
 registerFloorEditorPanel();
+registerDetailPanelType();
 
 const Panorama = {
   open(viewType, opts = {}) {
@@ -818,10 +981,9 @@ const Panorama = {
       label: opts.label,
       config,
       pinned: opts.pinned,
+      forceNew: opts.newTab,
     };
-    const id = opts.newTab
-      ? PanoramaWorkspace.open(descriptor)
-      : PanoramaWorkspace.openOrFocus(descriptor);
+    const id = PanoramaWorkspace.openTab(descriptor);
     if (opts.anchor && isView(viewType)) {
       requestAnimationFrame(() => scrollToAnchor(opts.anchor));
     }
@@ -848,15 +1010,15 @@ PanoramaWorkspace.init({
   tabBarEl: document.getElementById('wsTabs'),
   stageEl: document.getElementById('wsStage'),
   catalogEl: document.getElementById('wsCatalog'),
-  defaults: [{ id: 'p-operations', viewType: 'operations', label: 'Operations', pinned: true }],
+  homePanel: { id: 'p-operations', viewType: 'operations', label: 'Home', pinned: true },
 });
 
 PanoramaWorkspace.onChange((event, panel) => {
   if (event === 'activate' && panel.viewType !== 'operations') window.scrollTo(0, 0);
+  if (event === 'activate' && panel.viewType === 'detail') refreshActiveDetail();
 });
 
 /* ───────── Global search (header dropdown) ───────── */
-const DROPDOWN_TRANSITION_MS = 180;
 const CONTENT_TRANSITION_MS = 220;
 const GlobalSearch = {
   input: null,
@@ -869,6 +1031,8 @@ const GlobalSearch = {
   activeIdx: -1,
   items: [],
   open: false,
+  searchAgents: null,
+  searchAgentsToken: 0,
 
   init() {
     this.input = document.getElementById('qsearch');
@@ -891,26 +1055,44 @@ const GlobalSearch = {
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && this.isOpen()) { e.preventDefault(); this.closePanel(true); }
     });
+    globalThis.PanoramaProvider?.subscribe?.(() => {
+      this.searchAgents = null;
+    });
+    this.prefetchSearchAgents();
+  },
+
+  prefetchSearchAgents() {
+    if (!isLiveDataMode()) return;
+    this.ensureSearchAgents().catch((err) => {
+      console.warn('[Panorama] search agent directory prefetch failed', err);
+    });
+  },
+
+  async ensureSearchAgents() {
+    if (!isLiveDataMode()) return AGENTS;
+    if (this.searchAgents) return this.searchAgents;
+    const provider = globalThis.PanoramaProvider;
+    if (!provider?.getAgents) return AGENTS;
+    const list = await provider.getAgents({ scope: 'all' });
+    this.searchAgents = Array.isArray(list) ? list : [];
+    return this.searchAgents;
+  },
+
+  searchAgentPool() {
+    if (!isLiveDataMode()) return AGENTS;
+    const directory = this.searchAgents;
+    if (!directory?.length) return AGENTS;
+    const byId = new Map(directory.map((a) => [a.id, a]));
+    for (const a of AGENTS) byId.set(a.id, a);
+    return [...byId.values()];
   },
 
   isOpen() { return this.open; },
 
   syncAnimation() {
-    if (this.open) {
-      clearTimeout(this.closeTimeoutId);
-      this.drop.hidden = false;
-      this.drop.classList.remove('is-open');
-      requestAnimationFrame(() => {
-        this.drop.classList.add('is-open');
-      });
-      return;
-    }
-
-    this.drop.classList.remove('is-open');
-    clearTimeout(this.closeTimeoutId);
-    this.closeTimeoutId = setTimeout(() => {
-      this.drop.hidden = true;
-    }, DROPDOWN_TRANSITION_MS);
+    this.closeTimeoutId = syncDropdownPanel(this.drop, this.open, {
+      closeTimeoutId: this.closeTimeoutId,
+    });
   },
 
   openPanel() {
@@ -976,11 +1158,11 @@ const GlobalSearch = {
     return items;
   },
 
-  run(q) {
+  run(q, agentPool = AGENTS) {
     if (!q) return { agents: [], queues: [], skills: [], workItems: [] };
-    const agents = AGENTS.filter(a =>
+    const agents = agentPool.filter(a =>
       a.name.toLowerCase().includes(q) ||
-      a.role.toLowerCase().includes(q) ||
+      (a.role || '').toLowerCase().includes(q) ||
       teamOf(a).toLowerCase().includes(q)
     ).slice(0, 8);
     const queues = queueState.filter(qu => qu.name.toLowerCase().includes(q)).slice(0, 6);
@@ -1082,14 +1264,20 @@ const GlobalSearch = {
     this.syncContentHeight(prevHeight);
   },
 
-  render() {
+  async render() {
+    const token = ++this.searchAgentsToken;
     const q = this.query();
     if (!q) {
       this.items = [];
       this.setContent('<div class="qsearch-hint">Search agents, queues, skills, and work items.<br>Your current view stays unchanged.</div>');
       return;
     }
-    const { agents, queues, skills, workItems } = this.run(q);
+    if (isLiveDataMode() && !this.searchAgents) {
+      this.setContent('<div class="qsearch-hint">Loading agents…</div>');
+    }
+    await this.ensureSearchAgents();
+    if (token !== this.searchAgentsToken) return;
+    const { agents, queues, skills, workItems } = this.run(q, this.searchAgentPool());
     this.items = [
       ...agents.map(a => ({ kind: 'agent', id: a.id })),
       ...queues.map(qu => ({ kind: 'queue', id: qu.id })),
@@ -1135,9 +1323,8 @@ const GlobalSearch = {
 
   select(kind, id) {
     if (kind === 'agent' || kind === 'work') openDrawer(id);
-    else if (kind === 'queue') {
-      Panorama.open('operations', { anchor: 'queues' });
-    } else if (kind === 'skill') Panorama.open('skills');
+    else if (kind === 'queue') openQueueDrawer(id);
+    else if (kind === 'skill') Panorama.open('skills');
     this.closePanel(true);
   }
 };
@@ -1149,6 +1336,7 @@ const SettingsModal = {
 
   open(runtimeConfig) {
     this._populate(runtimeConfig);
+    this.backdrop.querySelectorAll('select.settings-select').forEach((el) => syncCustomSelect(el));
     this.backdrop.classList.add('open');
     document.getElementById('settingsClose').focus();
     document.addEventListener('keydown', this._onKey);
@@ -1271,6 +1459,7 @@ const SettingsModal = {
     });
 
     Panorama.openSettings = () => this.open(runtimeConfig);
+    enhanceAllSelects(this.backdrop);
   },
 };
 
@@ -1281,6 +1470,7 @@ Object.assign(globalThis, {
   updateAgents,
   updateRoomPanel,
   refreshFloors,
+  refreshActiveDetail,
   queueCard,
   Scene3D,
   setBuildDir,
