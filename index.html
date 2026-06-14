@@ -731,6 +731,94 @@
       opacity: .7
     }
 
+    .dev-console {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: var(--dev-console-height, 240px);
+      background: #1a1916;
+      color: #e8e6e2;
+      display: flex;
+      flex-direction: column;
+      z-index: 9000;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      box-shadow: 0 -4px 16px rgba(0, 0, 0, .3)
+    }
+
+    .dev-console[hidden] { display: none }
+
+    .dev-console-resize {
+      height: 6px;
+      cursor: ns-resize;
+      background: transparent;
+      flex-shrink: 0
+    }
+
+    .dev-console-resize:hover { background: rgba(255, 255, 255, .1) }
+
+    .dev-console-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, .1);
+      flex-shrink: 0
+    }
+
+    .dev-console-title { font-weight: 600; margin-right: 4px }
+
+    .dev-console-search {
+      background: rgba(255, 255, 255, .08);
+      border: none;
+      color: inherit;
+      border-radius: 4px;
+      padding: 3px 6px;
+      font: inherit;
+      width: 160px
+    }
+
+    .dev-console-filter {
+      background: rgba(255, 255, 255, .08);
+      border: none;
+      color: inherit;
+      border-radius: 4px;
+      padding: 3px 7px;
+      cursor: pointer;
+      font: inherit;
+      opacity: .5
+    }
+
+    .dev-console-filter[aria-pressed="true"] { opacity: 1; background: rgba(255, 255, 255, .2) }
+
+    .dev-console-btn {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 3px 7px;
+      border-radius: 4px
+    }
+
+    .dev-console-btn:hover { background: rgba(255, 255, 255, .12) }
+
+    .dev-console-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 8px
+    }
+
+    .dev-console-line { display: flex; gap: 8px; padding: 1px 0; white-space: pre-wrap; word-break: break-word }
+    .dev-console-ts { color: #6b6862; flex-shrink: 0 }
+    .dev-console-level { flex-shrink: 0; width: 48px; text-transform: uppercase; font-size: 10px }
+    .dev-console-level--log { color: #9aa0a6 }
+    .dev-console-level--info { color: #6cb6ff }
+    .dev-console-level--warn { color: #f0b429 }
+    .dev-console-level--error { color: #ff6b6b }
+    .dev-console-level--action { color: #7ee787 }
+
     /* ── Overview ── */
     .ov {
       padding: 36px 26px 64px
@@ -4302,6 +4390,13 @@
             </svg>
             Sobre
           </button>
+          <button class="settings-nav-item" data-section="developer" id="settingsNavDeveloper" hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+            Developer mode
+          </button>
         </nav>
 
         <div class="settings-content">
@@ -4519,6 +4614,23 @@
                 </div>
                 <label class="settings-toggle">
                   <input type="checkbox" id="settingsSoundAlert">
+                  <span class="settings-toggle-track"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Developer mode -->
+          <div class="settings-section" id="settings-developer">
+            <div class="settings-group">
+              <div class="settings-group-label">Developer mode</div>
+              <div class="settings-row">
+                <div class="settings-row-label">
+                  <strong>Show console</strong>
+                  <span>Mostra un panell de consola a la part inferior amb l'activitat de l'app</span>
+                </div>
+                <label class="settings-toggle">
+                  <input type="checkbox" id="settingsShowConsole">
                   <span class="settings-toggle-track"></span>
                 </label>
               </div>
