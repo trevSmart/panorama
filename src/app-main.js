@@ -6,12 +6,9 @@ import { buildBuildingSVG, computeFloorLayout, gridExtents, rgbc } from './build
 import { registerFloorEditorPanel } from './floor-editor.js';
 import { buildAgentQueueSummaries } from './agent-queue-summary.js';
 import { channelIconTileHtml, channelIconName, sfIconColor, sfIconTileHtml } from './ui/sf-icons.js';
+import { formatDurationMin, formatDurationSec, formatWorkTimer } from './ui/duration.js';
 
 /* ───────── Helpers ───────── */
-const fmtDur = s => { const m = Math.floor(s / 60); return m + ':' + String(s % 60).padStart(2, '0'); };
-const fmtWait = s => s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's';
-const fmtWaitShort = s => s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60 ? String(s % 60).padStart(2, '0') + 's' : '');
-const fmtLogin = m => { const h = Math.floor(m / 60); return h > 0 ? h + 'h ' + (m % 60) + 'm' : m + 'm'; };
 const initials = n => n.split(' ').map(w => w[0]).slice(0, 2).join('');
 const avGrad = i => [['#6a5be8', '#a98aff'], ['#15a06a', '#3ac88a'], ['#e05641', '#ff8f6b'], ['#d9981f', '#f2c14e'], ['#a98aff', '#e05641']][i % 5];
 const qById = id => QUEUES.find(q => q.id === id);
@@ -67,7 +64,7 @@ function health() {
   const lvl = (v, w, a) => v >= a ? 'alert' : v >= w ? 'watch' : 'ok';
   const allPillars = [
     {
-      id: 'wait', view: 'queues', lbl: 'Espera', val: fmtWaitShort(longest), raw: longest, state: lvl(longest, 150, 240),
+      id: 'wait', view: 'queues', lbl: 'Espera', val: formatDurationSec(longest, { short: true }), raw: longest, state: lvl(longest, 150, 240),
       msg: { ok: 'dins de marge', watch: 'pujant', alert: 'per sobre del llindar' }
     },
     {
@@ -122,8 +119,8 @@ function roomStageHTML(compact) {
             </div>
           </div>
         </div>
-        <div class="room-legend">${legendHTML()}</div>
         <div class="room-canvas">${b.svg}</div>
+        <div class="room-legend">${legendHTML()}</div>
       </div>`,
     stats: s
   };
@@ -425,7 +422,7 @@ function agentCard(a) {
   const segs = Array.from({ length: a.max }).map((_, i) => `<span style="flex:1;background:${i < a.used ? st.c : 'transparent'}"></span>`).join('');
   const workRow = isLiveDataMode()
     ? `<div class="work"><div class="wic wic--sf">${sfIconTileHtml('work', { size: 26 })}</div><div class="wt">${a.used > 0 ? `${a.used} open work item(s)` : 'No active work'}</div></div>`
-    : (a.work ? `<div class="work"><div class="wic wic--sf">${channelIconTileHtml(a.work.channelKey, { size: 26 })}</div><div class="wt"><b>${a.work.t}</b> · ${qById(a.work.q).name}</div><div class="timer mono">${fmtDur(a.workSec)}</div></div>` : `<div class="work"><div class="wic wic--sf">${sfIconTileHtml('work', { size: 26, bg: '#C9C7CD' })}</div><div class="wt">Sense feina activa</div></div>`);
+    : (a.work ? `<div class="work"><div class="wic wic--sf">${channelIconTileHtml(a.work.channelKey, { size: 26 })}</div><div class="wt"><b>${a.work.t}</b> · ${qById(a.work.q).name}</div><div class="timer mono">${formatWorkTimer(a.workSec)}</div></div>` : `<div class="work"><div class="wic wic--sf">${sfIconTileHtml('work', { size: 26, bg: '#C9C7CD' })}</div><div class="wt">Sense feina activa</div></div>`);
   return `<div class="card ${a.flag ? 'flagged' : ''}" style="--st:${st.c}" data-id="${a.id}">
     ${a.flag ? '<div class="flag-badge">⚑ AJUDA</div>' : ''}
     <div class="card-top">
@@ -436,7 +433,7 @@ function agentCard(a) {
     <div class="cap"><div class="cap-head"><span>Capacitat</span><b>${a.used} / ${a.max}</b></div><div class="cap-bar">${segs}</div></div>
     ${showChans ? `<div class="chan">${chanCells}</div>` : ''}
     ${workRow}
-    <div class="foot"><span>Loguejat <b class="mono">${a.status === 'offline' ? '—' : fmtLogin(a.loginMin)}</b></span>${isLiveDataMode() ? '' : `<span>Última feina <b class="mono">${a.lastAccept == null ? '—' : a.lastAccept + 'm'}</b></span>`}</div>
+    <div class="foot"><span>Loguejat <b class="mono">${a.status === 'offline' ? '—' : formatDurationMin(a.loginMin)}</b></span>${isLiveDataMode() ? '' : `<span>Última feina <b class="mono">${a.lastAccept == null ? '—' : formatDurationMin(a.lastAccept)}</b></span>`}</div>
   </div>`;
 }
 function queueCard(q) {
@@ -446,8 +443,8 @@ function queueCard(q) {
     <div class="pressure"><span style="width:${Math.max(6, p * 100)}%;background:${pColor(p)}"></span></div>
     <div class="qmetrics">
       <div class="m"><div class="v ${q.backlog > 8 ? 'warn' : ''}">${q.backlog}</div><div class="k">Backlog</div></div>
-      <div class="m"><div class="v ${q.longest > 150 ? 'warn' : ''}">${fmtWaitShort(q.longest)}</div><div class="k">Espera màx</div></div>
-      <div class="m"><div class="v">${fmtWaitShort(q.avg)}</div><div class="k">Espera mitj.</div></div>
+      <div class="m"><div class="v ${q.longest > 150 ? 'warn' : ''}">${formatDurationSec(q.longest, { short: true })}</div><div class="k">Espera màx</div></div>
+      <div class="m"><div class="v">${formatDurationSec(q.avg, { short: true })}</div><div class="k">Espera mitj.</div></div>
     </div></div>`;
 }
 function agentGridHTML() {
@@ -541,7 +538,7 @@ function openDrawer(id) {
     return `<div class="assigned-queue-work-item">
       <div class="assigned-queue-work-icon">${channelIconTileHtml(channelKey, { size: 24 })}</div>
       <div class="assigned-queue-work-copy"><div class="assigned-queue-work-title">${esc(label)}</div><div class="assigned-queue-work-meta">${esc(detail)}</div></div>
-      ${age == null ? '' : `<span class="assigned-queue-work-age mono">${age}m</span>`}
+      ${age == null ? '' : `<span class="assigned-queue-work-age mono">${formatDurationMin(age)}</span>`}
     </div>`;
   };
   const assignedQueuesHTML = queueSummaries.length
@@ -573,10 +570,10 @@ function openDrawer(id) {
         const chLabel = CH_LBL[w.channelKey] || w.channel || 'Channel';
         const queuePill = w.queue ? `<span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: 'var(--accent)' })}<span style="color:var(--accent)">${esc(w.queue)}</span></span>` : '';
         const subj = w.subject ? `<div class="m">${esc(w.subject)}</div>` : `<div class="m">${esc(chLabel)}</div>`;
-        return `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${esc(w.label)}</div>${subj}</div>${queuePill}<span class="age mono">${w.ageMin}m</span></div>`;
+        return `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${esc(w.label)}</div>${subj}</div>${queuePill}<span class="age mono">${formatDurationMin(w.ageMin)}</span></div>`;
       }).join('')}</div></section>`
       : '')
-    : `<section><h4>Feina activa (${items.length})</h4><div class="worklist">${items.map(w => `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${w.t}</div><div class="m">${CH_LBL[w.channelKey] || 'Canal'}</div></div><span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: qById(w.q).color })}<span style="color:${qById(w.q).color}">${qById(w.q).name}</span></span><span class="age mono">${w.age}m</span></div>`).join('')}</div></section>`;
+    : `<section><h4>Feina activa (${items.length})</h4><div class="worklist">${items.map(w => `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${w.t}</div><div class="m">${CH_LBL[w.channelKey] || 'Canal'}</div></div><span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: qById(w.q).color })}<span style="color:${qById(w.q).color}">${qById(w.q).name}</span></span><span class="age mono">${formatDurationMin(w.age)}</span></div>`).join('')}</div></section>`;
   document.getElementById('drawer').innerHTML = `
     <div class="dr-head"><button class="dr-close" onclick="closeDrawer()">✕</button>
       <div class="dr-id"><div class="ring ${a.status === 'busy' ? 'breathe' : ''}" style="--st:${st.c};width:58px;height:58px">${ringSVG(a.used, a.max, st.c, 58)}${agentRingFaceHTML(a)}</div>
@@ -586,8 +583,8 @@ function openDrawer(id) {
     <div class="dr-body">
       <section><h4>Resum d'activitat</h4><div class="stat-grid">
         <div class="s"><div class="v" style="color:${st.c}">${a.used}/${a.max}</div><div class="k">Capacitat</div></div>
-        <div class="s"><div class="v">${a.status === 'offline' ? '—' : fmtLogin(a.loginMin)}</div><div class="k">Loguejat</div></div>
-        ${live ? '' : `<div class="s"><div class="v">${a.lastAccept == null ? '—' : a.lastAccept + 'm'}</div><div class="k">Última feina</div></div>`}
+        <div class="s"><div class="v">${a.status === 'offline' ? '—' : formatDurationMin(a.loginMin)}</div><div class="k">Loguejat</div></div>
+        ${live ? '' : `<div class="s"><div class="v">${a.lastAccept == null ? '—' : formatDurationMin(a.lastAccept)}</div><div class="k">Última feina</div></div>`}
       </div></section>
       <section><h4>Assigned queues</h4>${assignedQueuesHTML}</section>
       ${timelineSection}

@@ -13,6 +13,7 @@ import {
   rnd,
   pick,
 } from './mock-seed.js';
+import { formatWorkTimer } from '../ui/duration.js';
 import { MOCK_CAPABILITIES } from './types.js';
 
 /**
@@ -66,7 +67,7 @@ function startSimulation(hooks) {
       const a = agents.find((x) => x.id === c.dataset.id);
       if (a?.work) {
         const t = c.querySelector('.timer');
-        if (t) t.textContent = formatDuration(a.workSec);
+        if (t) t.textContent = formatWorkTimer(a.workSec);
       }
     });
   }
@@ -125,11 +126,6 @@ function startSimulation(hooks) {
   setInterval(tickAgents, 3000);
   setInterval(tickQueues, 5000);
   setInterval(maybeFlag, 16000);
-}
-
-function formatDuration(s) {
-  const m = Math.floor(s / 60);
-  return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
 export function createMockProvider() {
