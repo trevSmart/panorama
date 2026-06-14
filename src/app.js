@@ -2,6 +2,7 @@ import { handleOAuthCallback, ensureAuthenticated, beginLogin, isOAuthCallbackPa
 import { buildPhotoProxyParams } from './data/agent-photos.js';
 import { installDataLayer, loadAppConfig } from './install-data.js';
 import { syncDropdownPanel } from './ui/dropdown-panel.js';
+import { devConsole } from './dev/dev-console.js';
 
 function showBodyMessage(title, message, hint = '') {
   document.body.replaceChildren();
@@ -150,6 +151,7 @@ async function initUserMenu(runtimeConfig) {
       const next = !isDevMode();
       localStorage.setItem(DEV_MODE_KEY, next ? 'true' : 'false');
       applyDevMode(next);
+      devConsole.action('devmode:toggle', next ? 'on' : 'off');
       window.dispatchEvent(new CustomEvent('panorama:devmode', { detail: { on: next } }));
     });
   }
@@ -173,6 +175,7 @@ async function initUserMenu(runtimeConfig) {
     const session = getOAuthSession();
     if (!session?.accessToken || !session?.instanceUrl) return;
 
+    devConsole.api('GET', '/services/oauth2/userinfo');
     const res = await fetch(`${session.instanceUrl}/services/oauth2/userinfo`, {
       headers: { Authorization: `Bearer ${session.accessToken}` },
     });
@@ -194,11 +197,13 @@ async function initUserMenu(runtimeConfig) {
       } catch {
         photoParams = null;
       }
-      const photoRes = photoParams
-        ? await fetch(`/api/salesforce/photo?${photoParams}`, {
+      let photoRes = null;
+      if (photoParams) {
+        devConsole.api('GET', '/api/salesforce/photo');
+        photoRes = await fetch(`/api/salesforce/photo?${photoParams}`, {
           headers: { Authorization: `Bearer ${session.accessToken}` },
-        })
-        : null;
+        });
+      }
       if (photoRes?.ok) {
         const blob = await photoRes.blob();
         const blobUrl = URL.createObjectURL(blob);

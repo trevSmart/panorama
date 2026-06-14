@@ -1,4 +1,5 @@
 import { basePlaces } from './data/floor-layout.js';
+import { devConsole } from './dev/dev-console.js';
 import {
   saveCustomRoom,
   loadCustomRoomDir,
@@ -1044,6 +1045,7 @@ function mountEditor(container) {
       setSavedBaseline();
       renderPlaces(); renderGrid(); renderBackgroundControls(); schedulePreview();
       globalThis.refreshFloors?.();
+      devConsole.action('floor:save', String(state.places.length), state.previewDir);
       return true;
     } catch {
       showMsg('No s\'ha pogut desar: cada planta necessita almenys una cel·la.', 'error');
@@ -1057,6 +1059,7 @@ function mountEditor(container) {
   container.querySelector('.fe-reset').addEventListener('click', () => {
     if (!state.dirty || !savedSnapshot) return;
     if (!confirm('Descartar els canvis no desats i tornar a l\'última versió guardada?')) return;
+    devConsole.action('floor:reset');
     undoStack.length = 0;
     redoStack.length = 0;
     restoring = true;

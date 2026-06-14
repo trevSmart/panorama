@@ -117,6 +117,7 @@ export function closeDetailDrawer() {
 
 export function maximizeDetailPanel(config) {
   const label = resolveDetailLabel(config);
+  devConsole.action('detail:maximize', config?.kind, config?.id ?? '');
   closeDetailDrawer();
   globalThis.Panorama?.open('detail', {
     config: { ...config, name: config.name || label },

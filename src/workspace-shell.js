@@ -163,6 +163,7 @@ class TabWorkspace {
     this._ensureContainer(panel);
     this.activate(panel.id);
     this._persist();
+    devConsole.action('tab:open', panel.viewType, panel.label);
     this._emit('open', panel);
     return panel.id;
   }
@@ -190,6 +191,7 @@ class TabWorkspace {
     }
 
     this._emit('close', panel);
+    devConsole.action('tab:close', panel.viewType, panel.label);
     return true;
   }
 
@@ -246,6 +248,7 @@ class TabWorkspace {
 
     this._renderTabBar();
     this._persist();
+    devConsole.action('tab:reorder', panel.viewType, String(insertAt));
     this._emit('reorder', panel);
     return true;
   }
