@@ -17,6 +17,12 @@ import {
 import { formatWorkTimer } from '../ui/duration.js';
 import { MOCK_CAPABILITIES } from './types.js';
 import { devConsole } from '../dev/dev-console.js';
+import { getRefreshConfig } from '../settings/preferences.js';
+
+/** @type {ReturnType<typeof setInterval>[]} */
+let simTimers = [];
+/** Re-run the simulation timers with the current refresh config. Set by startSimulation. */
+let restartSimTimers = null;
 
 /**
  * @typedef {import('./types.js').PanoramaCapabilities} PanoramaCapabilities
@@ -29,7 +35,6 @@ import { devConsole } from '../dev/dev-console.js';
  * @returns {import('./types.js').Agent[]|Promise<import('./types.js').Agent[]>}
  */
 function getAgents(opts) {
-  devConsole.action('data:load', 'mock');
   // Embed each agent's skills so the client has them up front, mirroring the
   // Salesforce /agents payload (skills are no longer fetched lazily per drawer).
   const hydrate = (a) => ({ ...a, skills: agentSkillRows(a.id) });
@@ -160,6 +165,7 @@ function getLegacyBindings() {
  * @param {{ isView: (v: string) => boolean, updateOverviewMetrics?: () => void, updateAgents?: () => void, updateRoomPanel?: () => void, Scene3D?: { update: (dt: number) => void }, activePanelEl?: () => HTMLElement|null, queueCard?: (q: object) => string }} hooks
  */
 function startSimulation(hooks) {
+  devConsole.action('data:load', 'mock');
   function tickWork() {
     agents.forEach((a) => {
       if (a.work) a.workSec++;
@@ -226,10 +232,23 @@ function startSimulation(hooks) {
     }
   }
 
-  setInterval(tickWork, 1000);
-  setInterval(tickAgents, 3000);
-  setInterval(tickQueues, 5000);
-  setInterval(maybeFlag, 16000);
+  /**
+   * @param {{ intervalMs: number, autoRefresh: boolean }} [cfg]
+   */
+  function startTimers(cfg) {
+    simTimers.forEach(clearInterval);
+    simTimers = [];
+    const { intervalMs, autoRefresh } = cfg || getRefreshConfig();
+    if (!autoRefresh) return;
+    // Per user preference, every simulation timer uses the configured interval.
+    simTimers.push(setInterval(tickWork, intervalMs));
+    simTimers.push(setInterval(tickAgents, intervalMs));
+    simTimers.push(setInterval(tickQueues, intervalMs));
+    simTimers.push(setInterval(maybeFlag, intervalMs));
+  }
+
+  restartSimTimers = startTimers;
+  startTimers();
 }
 
 export function createMockProvider() {
@@ -245,5 +264,12 @@ export function createMockProvider() {
     getWork,
     getLegacyBindings,
     startSimulation,
+    /**
+     * Apply a new simulation cadence live (from settings).
+     * @param {{ intervalMs: number, autoRefresh: boolean }} [cfg]
+     */
+    setRefreshInterval(cfg) {
+      restartSimTimers?.(cfg);
+    },
   };
 }
