@@ -9,7 +9,7 @@ export const WORKSPACE_VERSION = 2;
  */
 export function normalizePanel(panel) {
   return {
-    id: panel.id || `p-${Date.now().toString(36)}`,
+    id: panel.id || `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     viewType: panel.viewType || 'operations',
     label: panel.label || panel.viewType || 'Panel',
     config: { ...(panel.config || {}) },
