@@ -5,6 +5,8 @@
  * `render(config, ctx)` returns `{ head, actions?, body, afterMount? }`.
  */
 
+import { recordDetailOpen } from '../data/detail-recent-store.js';
+
 const kinds = new Map();
 
 /** @type {{ kind: string, id: string } | null} */
@@ -98,6 +100,7 @@ export function openDetailDrawer(config) {
   if (!drawer || !scrim) return;
 
   drawerConfig = { ...config };
+  recordDetailOpen(config);
   mountDetailSurface(drawer, drawerConfig, 'drawer');
   drawer.classList.add('show');
   scrim.classList.add('show');
@@ -113,7 +116,7 @@ export function maximizeDetailPanel(config) {
   const label = resolveDetailLabel(config);
   closeDetailDrawer();
   globalThis.Panorama?.open('detail', {
-    config: { ...config },
+    config: { ...config, name: config.name || label },
     label,
   });
 }
@@ -165,6 +168,7 @@ export function registerDetailPanelType() {
     },
     activate(container, config) {
       mountDetailPanel(container, config);
+      recordDetailOpen(config);
     },
   });
 }

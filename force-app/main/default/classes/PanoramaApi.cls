@@ -10,8 +10,18 @@ global with sharing class PanoramaApi {
             if (path == '/agents') {
                 String scope = req.params.get('scope');
                 writeJson(res, 200, PanoramaAgentService.getAgents(scope));
+            } else if (path.startsWith('/agents/') && path.endsWith('/skills')) {
+                String userId = path.substring('/agents/'.length(), path.length() - '/skills'.length());
+                writeJson(res, 200, PanoramaAgentService.getSkillsByAgent(userId));
             } else if (path == '/queues') {
                 writeJson(res, 200, PanoramaQueueService.getQueues());
+            } else if (path == '/skills') {
+                writeJson(res, 200, PanoramaSkillService.getSkills());
+            } else if (path.startsWith('/skills/') && path.endsWith('/agents')) {
+                String skillId = path.substring('/skills/'.length(), path.length() - '/agents'.length());
+                writeJson(res, 200, PanoramaAgentService.getAgentsBySkill(skillId));
+            } else if (path == '/work') {
+                writeJson(res, 200, PanoramaWorkService.getWork());
             } else {
                 writeJson(res, 404, new Map<String, Object>{
                     'error' => 'Not found',

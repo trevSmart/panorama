@@ -12,14 +12,16 @@ export const QUEUES = [
   { id: 're', name: 'Retenció', color: '#A98AFF' },
 ];
 
+// `type` mirrors the SkillType.MasterLabel values used in the org (Language,
+// Expertise), so the Skills page groups identically against mock and live data.
 export const SKILLS = [
-  { id: 'ca', name: 'Català', agents: 14 },
-  { id: 'es', name: 'Castellà', agents: 18 },
-  { id: 'en', name: 'Anglès', agents: 9 },
-  { id: 'fr', name: 'Francès', agents: 5 },
-  { id: 'tec', name: 'Suport tècnic L2', agents: 6 },
-  { id: 'ven', name: 'Vendes outbound', agents: 4 },
-  { id: 'ret', name: 'Retenció premium', agents: 3 },
+  { id: 'ca', name: 'Català', type: 'Language', agents: 14, backlog: 3 },
+  { id: 'es', name: 'Castellà', type: 'Language', agents: 18, backlog: 7 },
+  { id: 'en', name: 'Anglès', type: 'Language', agents: 9, backlog: 2 },
+  { id: 'fr', name: 'Francès', type: 'Language', agents: 5, backlog: 0 },
+  { id: 'tec', name: 'Suport tècnic L2', type: 'Expertise', agents: 6, backlog: 5 },
+  { id: 'ven', name: 'Vendes outbound', type: 'Expertise', agents: 4, backlog: 1 },
+  { id: 'ret', name: 'Retenció premium', type: 'Expertise', agents: 3, backlog: 4 },
 ];
 
 import { CH_LBL } from './channel-labels.js';
@@ -123,6 +125,48 @@ export let queueState = QUEUES.map((q) => ({
   avg: rnd(20, 90),
   online: agents.filter((a) => a.queues.includes(q.id) && a.status === 'online').length || rnd(1, 4),
 }));
+
+/**
+ * Work items currently traveling through queues to agents. Items assigned to a
+ * connected agent reflect that agent's active work; the rest sit in their queue
+ * as backlog. Shape mirrors the `/work` endpoint the Salesforce provider reads.
+ */
+export let workItems = (() => {
+  const items = [];
+  let n = 0;
+  // Active items: one per agent that is currently handling work.
+  agents.forEach((a) => {
+    if (!a.work) return;
+    const kind = a.work;
+    items.push({
+      id: `w${n++}`,
+      subject: kind.t,
+      channelKey: kind.channelKey,
+      queueId: kind.q,
+      agentId: a.id,
+      status: 'assigned',
+      ageSec: a.workSec || rnd(40, 900),
+    });
+  });
+  // Backlog items: unassigned, waiting in a queue.
+  QUEUES.forEach((q) => {
+    const backlog = rnd(1, 6);
+    for (let i = 0; i < backlog; i++) {
+      const kind = pick(WORK_KINDS.filter((w) => w.q === q.id)) || pick(WORK_KINDS);
+      const subject = kind.t === 'Cas #' ? `Cas #${rnd(48210, 48999)}` : kind.t;
+      items.push({
+        id: `w${n++}`,
+        subject,
+        channelKey: kind.channelKey,
+        queueId: q.id,
+        agentId: null,
+        status: 'queued',
+        ageSec: rnd(15, 1200),
+      });
+    }
+  });
+  return items;
+})();
 
 export const FLOORS = loadCustomFloors() || [floorBaixa(), floorPrimera()];
 

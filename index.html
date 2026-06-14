@@ -23,6 +23,7 @@
       --line-2: rgba(27, 25, 36, .16);
       --accent: #0080BE;
       --accent-soft: rgba(0, 128, 190, .10);
+      --accent-30: rgba(0, 128, 190, .3);
       --ok: #15A06A;
       --ok-soft: rgba(21, 160, 106, .10);
       --watch: #D9981F;
@@ -35,6 +36,9 @@
       --ease: cubic-bezier(.22, .61, .36, 1);
       --shadow: 0 1px 2px rgba(27, 25, 36, .04), 0 4px 16px rgba(27, 25, 36, .05);
       --shadow-lift: 0 8px 30px rgba(27, 25, 36, .10);
+      --topbar-h: 58px;
+      --tabbar-h: 38px;
+      --chrome-h: calc(var(--topbar-h) + var(--tabbar-h));
     }
 
     * {
@@ -76,19 +80,31 @@
       color: inherit
     }
 
-    /* ── Top bar ── */
+    /* ── App chrome (header + tab bar) ── */
+    .app-chrome {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(251, 250, 248, .8);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line)
+    }
+
     .topbar {
-      height: 58px;
+      height: var(--topbar-h);
       display: flex;
       align-items: center;
       gap: 22px;
-      padding: 0 26px;
-      border-bottom: 1px solid var(--line);
-      background: rgba(251, 250, 248, .8);
-      backdrop-filter: blur(14px);
-      position: sticky;
-      top: 0;
-      z-index: 40
+      padding: 0 26px
+    }
+
+    .ws-tabbar {
+      height: var(--tabbar-h);
+      display: flex;
+      align-items: center;
+      padding: 0 22px;
+      border-top: 1px solid var(--line);
+      background: rgba(251, 250, 248, .55)
     }
 
     .brand {
@@ -107,14 +123,13 @@
     .ws-tabs-wrap {
       position: relative;
       flex: 1;
-      min-width: 0;
-      margin-left: 4px
+      min-width: 0
     }
 
     .ws-tabs {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 0;
       min-width: 0;
       overflow-x: auto;
       scrollbar-width: none;
@@ -126,19 +141,33 @@
       display: none
     }
 
+    .ws-tab + .ws-tab::before,
+    .ws-tab + .ws-tab-add::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 1px;
+      height: 16px;
+      background: rgba(27, 25, 36, .13);
+      pointer-events: none
+    }
+
     .ws-tab {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      max-width: 200px;
+      flex: 1 1 130px;
+      min-width: 80px;
+      max-width: 130px;
       padding: 6px 10px 6px 12px;
       border-radius: 8px;
       border: 1px solid transparent;
       color: var(--dim);
-      font-size: 14px;
+      font-size: 12.5px;
       font-weight: 500;
       white-space: nowrap;
-      flex-shrink: 0;
       transition: .16s var(--ease);
       position: relative;
       touch-action: none;
@@ -149,14 +178,31 @@
       transition: background .16s var(--ease), color .16s var(--ease), opacity .16s var(--ease)
     }
 
+    .ws-tabs.is-reordering {
+      overflow-x: hidden;
+      cursor: grabbing
+    }
+
     .ws-tab.is-dragging {
-      opacity: .7;
       cursor: grabbing;
-      z-index: 2;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, .18)
+      z-index: 50;
+      box-shadow: var(--shadow-lift);
+      transition: none !important
+    }
+
+    .ws-tab-placeholder {
+      flex-shrink: 0;
+      border-radius: 8px;
+      box-sizing: border-box;
+      background: rgba(27, 25, 36, .03);
+      border: 1px dashed rgba(27, 25, 36, .1)
     }
 
     .ws-tab-close {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
       display: grid;
       place-items: center;
       width: 20px;
@@ -166,11 +212,23 @@
       line-height: 1;
       color: var(--faint);
       flex-shrink: 0;
-      cursor: pointer
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1;
+      background: transparent;
+      transition: opacity .15s var(--ease), color .15s var(--ease), background .15s var(--ease)
     }
 
-    .ws-tab.on .ws-tab-close {
-      color: var(--accent)
+    .ws-tab:hover .ws-tab-close,
+    .ws-tab:focus-within .ws-tab-close {
+      opacity: 1;
+      pointer-events: auto
+    }
+
+    .ws-tab.on:hover .ws-tab-close,
+    .ws-tab.on:focus-within .ws-tab-close {
+      color: var(--dim)
     }
 
     .ws-tab:hover {
@@ -185,16 +243,23 @@
     }
 
     .ws-tab-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
+      position: relative;
+      display: block;
       min-width: 0;
       flex: 1
     }
 
     .ws-tab-label-text {
+      display: block;
       overflow: hidden;
-      text-overflow: ellipsis
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .ws-tab:has(.ws-tab-close):hover .ws-tab-label-text,
+    .ws-tab:has(.ws-tab-close):focus-within .ws-tab-label-text {
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent calc(100% - 20px));
+      mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent calc(100% - 20px))
     }
 
     .ws-tab-icon {
@@ -242,11 +307,12 @@
     }
 
     .ws-tab-close:hover {
-      color: var(--ink);
-      background: rgba(27, 25, 36, .08)
+      color: var(--alert);
+      background: var(--alert-soft)
     }
 
     .ws-tab-add {
+      position: relative;
       width: 30px;
       height: 30px;
       border-radius: 8px;
@@ -315,7 +381,7 @@
     }
 
     .workspace {
-      min-height: calc(100vh - 58px)
+      min-height: calc(100vh - var(--chrome-h))
     }
 
     .ws-stage {
@@ -359,7 +425,7 @@
       box-shadow: 0 0 0 3px var(--accent-soft)
     }
 
-    .qsearch svg {
+    .qsearch > svg {
       position: absolute;
       left: 10px;
       top: 50%;
@@ -385,7 +451,7 @@
 
     .qsearch-drop-body {
       interpolate-size: allow-keywords;
-      max-height: min(428px, calc(100vh - 84px));
+      max-height: min(428px, calc(100vh - var(--chrome-h) - 26px));
       overflow: hidden
     }
 
@@ -489,18 +555,8 @@
       object-fit: cover
     }
 
-    .qsearch-item .si-thumb {
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      display: grid;
-      place-items: center;
-      font-family: 'Space Grotesk';
-      font-size: 12px;
-      font-weight: 600;
-      color: #fff;
-      flex-shrink: 0;
-      line-height: 0
+    .qsearch-item .sf-icon-tile {
+      border-radius: 8px
     }
 
     .qsearch-item .si-badge {
@@ -537,7 +593,7 @@
       width: 29px;
       height: 29px;
       border-radius: 50%;
-      border: 1px solid var(--accent);
+      border: 1px solid var(--accent-30);
       background: linear-gradient(135deg, #0099DA, #6AC9F3);
       display: grid;
       place-items: center;
@@ -633,6 +689,38 @@
       height: 1px;
       background: var(--line, #e8e6e2);
       margin: 4px 0
+    }
+
+    .user-menu-toggle {
+      margin-left: auto;
+      flex-shrink: 0;
+      width: 30px;
+      height: 16px;
+      border-radius: 8px;
+      background: var(--line, #e8e6e2);
+      position: relative;
+      transition: background .15s ease
+    }
+
+    .user-menu-toggle::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+      transition: transform .15s ease
+    }
+
+    .user-menu-item[aria-checked="true"] .user-menu-toggle {
+      background: var(--accent)
+    }
+
+    .user-menu-item[aria-checked="true"] .user-menu-toggle::after {
+      transform: translateX(14px)
     }
 
     .user-menu-item--danger {
@@ -894,7 +982,7 @@
       max-width: none;
       margin: 0;
       padding: 0;
-      height: calc(100vh - 58px);
+      height: calc(100vh - var(--chrome-h));
       display: flex;
       flex-direction: column;
       overflow: hidden
@@ -1113,6 +1201,30 @@
     }
 
     .sec-title .cnt {
+      font-family: 'JetBrains Mono';
+      font-size: 12px;
+      color: var(--faint);
+      font-weight: 500
+    }
+
+    /* Grouped sections on the Skills (by skill type) and Work (by queue) pages */
+    .sk-group,
+    .wk-group {
+      margin-bottom: 26px
+    }
+
+    .sk-group>h4,
+    .wk-group>h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 0 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 9px
+    }
+
+    .sk-group>h4 .cnt,
+    .wk-group>h4 .cnt {
       font-family: 'JetBrains Mono';
       font-size: 12px;
       color: var(--faint);
@@ -1845,7 +1957,7 @@
     }
 
     .view-detail {
-      height: calc(100vh - 58px);
+      height: calc(100vh - var(--chrome-h));
       overflow-y: auto;
       background: var(--bg-tint)
     }
@@ -2032,6 +2144,90 @@
 
     .queue-drawer-pressure {
       margin-top: 2px
+    }
+
+    /* Agent drawer — skill assignments */
+    .skill-list {
+      display: grid;
+      gap: 8px
+    }
+
+    .skill-row {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 11px 12px
+    }
+
+    .skill-row-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px
+    }
+
+    .skill-row-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink)
+    }
+
+    .skill-row-name>span:first-of-type {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .skill-type-tag {
+      flex-shrink: 0;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--dim);
+      background: color-mix(in srgb, var(--dim) 10%, transparent);
+      padding: 2px 7px;
+      border-radius: 999px
+    }
+
+    .skill-level-pill {
+      flex-shrink: 0;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      padding: 3px 8px;
+      border-radius: 999px
+    }
+
+    .skill-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 11px 0 0
+    }
+
+    .skill-meta>div {
+      min-width: 0
+    }
+
+    .skill-meta dt {
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--faint);
+      margin-bottom: 3px
+    }
+
+    .skill-meta dd {
+      margin: 0;
+      font-size: 11.5px;
+      color: var(--ink);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
     }
 
     .queue-agent-list {
@@ -2654,10 +2850,6 @@
       .qsearch input:focus {
         width: 130px
       }
-
-      .ws-tab {
-        max-width: 140px
-      }
     }
 
     /* ── Floor editor ── */
@@ -2665,7 +2857,7 @@
       max-width: none;
       margin: 0;
       padding: 0;
-      height: calc(100vh - 58px);
+      height: calc(100vh - var(--chrome-h));
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -3580,7 +3772,7 @@
       background: var(--surface);
       border-radius: 20px;
       box-shadow: 0 24px 80px rgba(27, 25, 36, .22), 0 0 0 1px var(--line);
-      width: 680px;
+      width: 880px;
       max-width: 100%;
       max-height: calc(100vh - 48px);
       display: flex;
@@ -3975,15 +4167,12 @@
 
 <body>
 
-  <header class="topbar">
-    <div class="brand" onclick="Panorama.home()"><img src="assets/panorama-logo.png" alt="Panorama" class="brand-logo"></div>
-    <div class="ws-tabs-wrap">
-      <div class="ws-tabs" id="wsTabs" role="tablist" aria-label="Workspace panels"></div>
-      <div class="ws-catalog dropdown-panel" id="wsCatalog" hidden role="menu" aria-label="Open panel"></div>
-    </div>
-    <div class="top-right">
-      <span class="clock mono" id="clock">--:--:--</span>
-      <div class="qsearch" id="globalSearch">
+  <div class="app-chrome">
+    <header class="topbar">
+      <div class="brand" onclick="Panorama.home()"><img src="assets/panorama-logo.png" alt="Panorama" class="brand-logo"></div>
+      <div class="top-right">
+        <span class="clock mono" id="clock">--:--:--</span>
+        <div class="qsearch" id="globalSearch">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="7" />
           <path d="m21 21-4-4" />
@@ -4023,6 +4212,15 @@
             Open Salesforce Setup
           </button>
           <div class="user-menu-sep"></div>
+          <button class="user-menu-item" id="userMenuDevMode" role="menuitemcheckbox" aria-checked="false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+            Developer mode
+            <span class="user-menu-toggle" aria-hidden="true"></span>
+          </button>
+          <div class="user-menu-sep"></div>
           <button class="user-menu-item user-menu-item--danger" id="userMenuLogout" role="menuitem">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -4034,7 +4232,15 @@
         </div>
       </div>
     </div>
-  </header>
+    </header>
+
+    <nav class="ws-tabbar" aria-label="Workspace tabs">
+      <div class="ws-tabs-wrap">
+        <div class="ws-tabs" id="wsTabs" role="tablist" aria-label="Workspace panels"></div>
+        <div class="ws-catalog dropdown-panel" id="wsCatalog" hidden role="menu" aria-label="Open panel"></div>
+      </div>
+    </nav>
+  </div>
 
   <div class="workspace" id="workspace">
     <div class="ws-stage" id="wsStage"></div>

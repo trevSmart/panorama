@@ -133,6 +133,9 @@ private class PanoramaAgentServiceTest {
         Test.stopTest();
         System.assertNotEquals(null, response);
         System.assertNotEquals(null, response.agents);
+        for (PanoramaAgentService.AgentDto a : response.agents) {
+            System.assertNotEquals(null, a.skills, 'each agent should carry an embedded skills list');
+        }
     }
 
     @IsTest
@@ -142,6 +145,49 @@ private class PanoramaAgentServiceTest {
         Test.stopTest();
         System.assertNotEquals(null, response);
         System.assertNotEquals(null, response.agents);
+        for (PanoramaAgentService.AgentDto a : response.agents) {
+            System.assertNotEquals(null, a.skills, 'each agent should carry an embedded skills list');
+        }
+    }
+
+    @IsTest
+    static void getAgentsBySkillReturnsList() {
+        Test.startTest();
+        PanoramaAgentService.AgentsResponse response =
+            PanoramaAgentService.getAgentsBySkill('0C5000000000001AAA');
+        Test.stopTest();
+        System.assertNotEquals(null, response);
+        System.assertNotEquals(null, response.agents);
+    }
+
+    @IsTest
+    static void getAgentsBySkillNullReturnsEmpty() {
+        Test.startTest();
+        PanoramaAgentService.AgentsResponse response =
+            PanoramaAgentService.getAgentsBySkill(null);
+        Test.stopTest();
+        System.assertNotEquals(null, response);
+        System.assertEquals(0, response.agents.size());
+    }
+
+    @IsTest
+    static void getSkillsByAgentReturnsList() {
+        Test.startTest();
+        PanoramaAgentService.AgentSkillsResponse response =
+            PanoramaAgentService.getSkillsByAgent(UserInfo.getUserId());
+        Test.stopTest();
+        System.assertNotEquals(null, response);
+        System.assertNotEquals(null, response.skills);
+    }
+
+    @IsTest
+    static void getSkillsByAgentNullReturnsEmpty() {
+        Test.startTest();
+        PanoramaAgentService.AgentSkillsResponse response =
+            PanoramaAgentService.getSkillsByAgent(null);
+        Test.stopTest();
+        System.assertNotEquals(null, response);
+        System.assertEquals(0, response.skills.size());
     }
 
     @IsTest
@@ -274,5 +320,229 @@ private class PanoramaAgentServiceTest {
         System.assertEquals(0, PanoramaQueueService.secondsSince(nowDt, nowDt.addSeconds(60)));
         Integer elapsed = PanoramaQueueService.secondsSince(nowDt, nowDt.addSeconds(-120));
         System.assert(elapsed >= 119 && elapsed <= 121, 'Expected ~120s, got ' + elapsed);
+    }
+
+    /* ───────── Work service ───────── */
+
+    @IsTest
+    static void getWorkReturnsList() {
+        Test.startTest();
+        PanoramaWorkService.WorkResponse response = PanoramaWorkService.getWork();
+        Test.stopTest();
+        System.assertNotEquals(null, response);
+        System.assertNotEquals(null, response.work);
+    }
+
+    @IsTest
+    static void workIsCaseIdRecognizesCasePrefix() {
+        System.assertEquals(true, PanoramaWorkService.isCaseId('500000000000001AAA'));
+        System.assertEquals(false, PanoramaWorkService.isCaseId('0Bz000000000001AAA'));
+        System.assertEquals(false, PanoramaWorkService.isCaseId(null));
+    }
+
+    @IsTest
+    static void workSubjectForPrefersCaseSubjectThenNumberThenChannel() {
+        Id caseId = '500000000000001AAA';
+        Case withSubject = (Case) JSON.deserialize(
+            '{"attributes":{"type":"Case"},"Id":"' + caseId + '","CaseNumber":"00042","Subject":"Broken thing"}',
+            Case.class
+        );
+        Case noSubject = (Case) JSON.deserialize(
+            '{"attributes":{"type":"Case"},"Id":"' + caseId + '","CaseNumber":"00042"}',
+            Case.class
+        );
+
+        Map<Id, Case> withSub = new Map<Id, Case>{ caseId => withSubject };
+        Map<Id, Case> noSub = new Map<Id, Case>{ caseId => noSubject };
+
+        System.assertEquals('Broken thing', PanoramaWorkService.subjectFor(caseId, withSub, 'Phone'));
+        System.assertEquals('Case 00042', PanoramaWorkService.subjectFor(caseId, noSub, 'Phone'));
+        System.assertEquals('Phone', PanoramaWorkService.subjectFor(null, new Map<Id, Case>(), 'Phone'));
+        System.assertEquals('Work item', PanoramaWorkService.subjectFor(null, new Map<Id, Case>(), null));
+    }
+
+    @IsTest
+    static void workSecondsSinceClampsNullAndNegative() {
+        Datetime nowDt = System.now();
+        System.assertEquals(0, PanoramaWorkService.secondsSince(nowDt, null));
+        System.assertEquals(0, PanoramaWorkService.secondsSince(nowDt, nowDt.addSeconds(60)));
+        Integer elapsed = PanoramaWorkService.secondsSince(nowDt, nowDt.addSeconds(-90));
+        System.assert(elapsed >= 89 && elapsed <= 91, 'Expected ~90s, got ' + elapsed);
+    }
+
+    private static AgentWork buildAgentWork(Id workItemId, Id userId, Id queueId, Datetime requestDt) {
+        Map<String, Object> raw = new Map<String, Object>{
+            'attributes' => new Map<String, Object>{ 'type' => 'AgentWork' },
+            'Id' => '0Bz000000000001AAA',
+            'WorkItemId' => workItemId == null ? null : String.valueOf(workItemId),
+            'UserId' => userId == null ? null : String.valueOf(userId),
+            'OriginalQueueId' => queueId == null ? null : String.valueOf(queueId),
+            'RequestDateTime' => requestDt
+        };
+        return (AgentWork) JSON.deserialize(JSON.serialize(raw), AgentWork.class);
+    }
+
+    private static PendingServiceRouting buildPendingRouting(Id workItemId, Id queueId, Datetime createdDt) {
+        Map<String, Object> raw = new Map<String, Object>{
+            'attributes' => new Map<String, Object>{ 'type' => 'PendingServiceRouting' },
+            'Id' => '0JR000000000001AAA',
+            'WorkItemId' => workItemId == null ? null : String.valueOf(workItemId),
+            'QueueId' => queueId == null ? null : String.valueOf(queueId),
+            'CreatedDate' => createdDt
+        };
+        return (PendingServiceRouting) JSON.deserialize(JSON.serialize(raw), PendingServiceRouting.class);
+    }
+
+    @IsTest
+    static void buildAssignedItemsMapsAgentWork() {
+        Datetime nowDt = System.now();
+        Id caseId = '500000000000001AAA';
+        Id userId = '005000000000001AAA';
+        Id queueId = '00G000000000001AAA';
+        Case c = (Case) JSON.deserialize(
+            '{"attributes":{"type":"Case"},"Id":"' + caseId + '","CaseNumber":"00099","Subject":"Down"}',
+            Case.class
+        );
+        Map<Id, Case> caseById = new Map<Id, Case>{ caseId => c };
+
+        List<AgentWork> assigned = new List<AgentWork>{
+            buildAgentWork(caseId, userId, queueId, nowDt.addSeconds(-120))
+        };
+
+        Test.startTest();
+        List<PanoramaWorkService.WorkItemDto> items =
+            PanoramaWorkService.buildAssignedItems(assigned, caseById, nowDt);
+        Test.stopTest();
+
+        System.assertEquals(1, items.size());
+        PanoramaWorkService.WorkItemDto dto = items[0];
+        System.assertEquals('assigned', dto.status);
+        System.assertEquals(String.valueOf(userId), dto.agentId);
+        System.assertEquals(String.valueOf(queueId), dto.queueId);
+        System.assertEquals('Down', dto.subject);
+        System.assert(dto.ageSec >= 119 && dto.ageSec <= 121, 'Expected ~120s, got ' + dto.ageSec);
+    }
+
+    @IsTest
+    static void buildQueuedItemsMapsPendingRouting() {
+        Datetime nowDt = System.now();
+        Id queueId = '00G000000000002AAA';
+
+        List<PendingServiceRouting> pending = new List<PendingServiceRouting>{
+            buildPendingRouting(null, queueId, nowDt.addSeconds(-45))
+        };
+
+        Test.startTest();
+        List<PanoramaWorkService.WorkItemDto> items =
+            PanoramaWorkService.buildQueuedItems(pending, new Map<Id, Case>(), nowDt);
+        Test.stopTest();
+
+        System.assertEquals(1, items.size());
+        PanoramaWorkService.WorkItemDto dto = items[0];
+        System.assertEquals('queued', dto.status);
+        System.assertEquals(null, dto.agentId);
+        System.assertEquals(String.valueOf(queueId), dto.queueId);
+        System.assertEquals('Work item', dto.subject, 'No case and no channel label falls back to Work item');
+        System.assert(dto.ageSec >= 44 && dto.ageSec <= 46, 'Expected ~45s, got ' + dto.ageSec);
+    }
+
+    /* ───────── Skills service ───────── */
+
+    @IsTest
+    static void getSkillsReturnsList() {
+        Test.startTest();
+        PanoramaSkillService.SkillsResponse response = PanoramaSkillService.getSkills();
+        Test.stopTest();
+        System.assertNotEquals(null, response);
+        System.assertNotEquals(null, response.skills);
+    }
+
+    /**
+     * The Skill loop body in getSkills (building DTOs, merging per-skill metrics)
+     * cannot be exercised by inserting Skill — DML insert is not allowed on it,
+     * and the org may have no skills. Cover that logic via the pure tally helper
+     * (countBacklogTalliesReadyRequirementsBySkill) plus this DTO-shape check.
+     */
+    @IsTest
+    static void skillDtoHoldsCatalogShape() {
+        PanoramaSkillService.SkillDto dto = new PanoramaSkillService.SkillDto();
+        dto.id = '0C5000000000001AAA';
+        dto.name = 'Català';
+        dto.agents = 3;
+        dto.backlog = 7;
+        System.assertEquals('Català', dto.name);
+        System.assertEquals(3, dto.agents);
+        System.assertEquals(7, dto.backlog);
+    }
+
+    /**
+     * Build a SkillRequirement with read-only SkillId/RelatedRecordId populated
+     * via JSON round-trip, so the pure backlog tally can be tested without the
+     * routing system objects.
+     */
+    private static SkillRequirement buildSkillReq(Id skillId, Id relatedRecordId) {
+        Map<String, Object> raw = new Map<String, Object>{
+            'attributes' => new Map<String, Object>{ 'type' => 'SkillRequirement' },
+            'SkillId' => skillId == null ? null : String.valueOf(skillId),
+            'RelatedRecordId' => relatedRecordId == null ? null : String.valueOf(relatedRecordId)
+        };
+        return (SkillRequirement) JSON.deserialize(JSON.serialize(raw), SkillRequirement.class);
+    }
+
+    private static ServiceResourceSkill buildResourceSkill(Id skillId, Id resourceId) {
+        Map<String, Object> raw = new Map<String, Object>{
+            'attributes' => new Map<String, Object>{ 'type' => 'ServiceResourceSkill' },
+            'SkillId' => skillId == null ? null : String.valueOf(skillId),
+            'ServiceResourceId' => resourceId == null ? null : String.valueOf(resourceId)
+        };
+        return (ServiceResourceSkill) JSON.deserialize(JSON.serialize(raw), ServiceResourceSkill.class);
+    }
+
+    @IsTest
+    static void countAgentsTalliesDistinctResourcesBySkill() {
+        Id skillA = '0C5000000000001AAA';
+        Id skillB = '0C5000000000002AAA';
+        Id res1 = '0Hn000000000001AAA';
+        Id res2 = '0Hn000000000002AAA';
+
+        List<ServiceResourceSkill> assignments = new List<ServiceResourceSkill>{
+            buildResourceSkill(skillA, res1),
+            buildResourceSkill(skillA, res1), // duplicate resource → counted once
+            buildResourceSkill(skillA, res2),
+            buildResourceSkill(skillB, res1),
+            buildResourceSkill(null, res1),   // ignored (no skill)
+            buildResourceSkill(skillB, null)  // ignored (no resource)
+        };
+
+        Test.startTest();
+        Map<Id, Integer> bySkill = PanoramaSkillService.countAgents(assignments);
+        Test.stopTest();
+
+        System.assertEquals(2, bySkill.get(skillA), 'Two distinct resources for skill A');
+        System.assertEquals(1, bySkill.get(skillB), 'One resource for skill B');
+    }
+
+    @IsTest
+    static void countBacklogTalliesReadyRequirementsBySkill() {
+        Id skillA = '0C5000000000001AAA';
+        Id skillB = '0C5000000000002AAA';
+        Id psrReady = '0JR000000000001AAA';
+        Id psrNotReady = '0JR000000000002AAA';
+
+        List<SkillRequirement> reqs = new List<SkillRequirement>{
+            buildSkillReq(skillA, psrReady),     // counts
+            buildSkillReq(skillA, psrNotReady),  // excluded (PSR not ready)
+            buildSkillReq(skillB, psrReady),     // counts
+            buildSkillReq(skillB, null),         // counts (no PSR filter)
+            buildSkillReq(null, psrReady)        // ignored (no skill)
+        };
+        Set<Id> ready = new Set<Id>{ psrReady };
+
+        Test.startTest();
+        Map<Id, Integer> bySkill = PanoramaSkillService.countBacklog(reqs, ready);
+        Test.stopTest();
+
+        System.assertEquals(1, bySkill.get(skillA), 'Only the ready PSR counts for skill A');
+        System.assertEquals(2, bySkill.get(skillB), 'Ready PSR plus null-PSR requirement count for skill B');
     }
 }

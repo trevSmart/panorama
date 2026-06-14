@@ -25,10 +25,26 @@ public with sharing class PanoramaAgentService {
         public String photo;
         public Map<String, Integer> chans;
         public List<WorkItemDto> work;
+        public List<AgentSkillDto> skills;
     }
 
     public class AgentsResponse {
         public List<AgentDto> agents;
+    }
+
+    public class AgentSkillDto {
+        public String id;
+        public String skillId;
+        public String name;
+        public String type;
+        public Double level;
+        public Datetime startDate;
+        public Datetime lastModifiedDate;
+        public String lastModifiedBy;
+    }
+
+    public class AgentSkillsResponse {
+        public List<AgentSkillDto> skills;
     }
 
     /**
@@ -46,14 +62,118 @@ public with sharing class PanoramaAgentService {
     public static AgentsResponse getAgents(String scope) {
         Boolean includeAll = scope != null && scope.equalsIgnoreCase('all');
 
+        // Current Omni-Channel presence, keyed by user.
+        Map<Id, UserServicePresence> presenceByUser = loadCurrentPresence();
+
+        // Build the set of users to report.
+        Set<Id> userIds = new Set<Id>(presenceByUser.keySet());
+        if (includeAll) {
+            userIds.addAll(loadOmniEnabledUserIds());
+        }
+
+        AgentsResponse response = new AgentsResponse();
+        response.agents = buildAgentDtos(userIds, presenceByUser);
+        return response;
+    }
+
+    /**
+     * Agents qualified for a skill. Each qualified agent is a ServiceResource
+     * (RelatedRecordId → User) linked to the skill via ServiceResourceSkill;
+     * reported with the same presence/work shape as getAgents so the client can
+     * reuse the agent card and drawer.
+     * @param skillId the Skill Id to look up
+     */
+    public static AgentsResponse getAgentsBySkill(Id skillId) {
         AgentsResponse response = new AgentsResponse();
         response.agents = new List<AgentDto>();
+        if (skillId == null) {
+            return response;
+        }
 
-        Map<Id, List<WorkItemDto>> workByUser = loadWorkItemsByUser();
+        Set<Id> userIds = new Set<Id>();
+        for (ServiceResourceSkill srs : [
+            SELECT ServiceResource.RelatedRecordId
+            FROM ServiceResourceSkill
+            WHERE SkillId = :skillId AND ServiceResource.IsActive = true
+            LIMIT 10000
+        ]) {
+            Id userId = srs.ServiceResource?.RelatedRecordId;
+            if (userId != null && String.valueOf(userId).startsWith('005')) {
+                userIds.add(userId);
+            }
+        }
+        if (userIds.isEmpty()) {
+            return response;
+        }
 
-        String orgUrl = Url.getOrgDomainUrl().toExternalForm();
+        response.agents = buildAgentDtos(userIds, loadCurrentPresence());
+        return response;
+    }
 
-        // Current Omni-Channel presence, keyed by user.
+    /**
+     * Skills assigned to an agent, with the ServiceResourceSkill relationship
+     * metadata (level, start date, last-modified audit). The agent is resolved
+     * through its ServiceResource (RelatedRecordId → User).
+     * @param userId the agent's User Id
+     */
+    public static AgentSkillsResponse getSkillsByAgent(Id userId) {
+        AgentSkillsResponse response = new AgentSkillsResponse();
+        response.skills = new List<AgentSkillDto>();
+        if (userId == null) {
+            return response;
+        }
+
+        Map<Id, List<AgentSkillDto>> skillsByUser = loadSkillsByUser(new Set<Id>{ userId });
+        if (skillsByUser.containsKey(userId)) {
+            response.skills = skillsByUser.get(userId);
+        }
+        return response;
+    }
+
+    /**
+     * Skills assigned to a set of agents, keyed by User Id, sharing the same
+     * ServiceResourceSkill query and DTO mapping as getSkillsByAgent so the
+     * embedded-on-/agents shape matches the standalone endpoint. Resolved through
+     * each agent's ServiceResource (RelatedRecordId → User).
+     */
+    private static Map<Id, List<AgentSkillDto>> loadSkillsByUser(Set<Id> userIds) {
+        Map<Id, List<AgentSkillDto>> byUser = new Map<Id, List<AgentSkillDto>>();
+        if (userIds == null || userIds.isEmpty()) {
+            return byUser;
+        }
+
+        for (ServiceResourceSkill srs : [
+            SELECT SkillId, Skill.MasterLabel, Skill.Type.MasterLabel,
+                   SkillLevel, EffectiveStartDate,
+                   LastModifiedDate, LastModifiedBy.Name,
+                   ServiceResource.RelatedRecordId
+            FROM ServiceResourceSkill
+            WHERE ServiceResource.RelatedRecordId IN :userIds
+            ORDER BY Skill.MasterLabel
+            LIMIT 10000
+        ]) {
+            Id ownerId = srs.ServiceResource?.RelatedRecordId;
+            if (ownerId == null) {
+                continue;
+            }
+            AgentSkillDto dto = new AgentSkillDto();
+            dto.id = String.valueOf(srs.Id);
+            dto.skillId = srs.SkillId == null ? null : String.valueOf(srs.SkillId);
+            dto.name = srs.Skill?.MasterLabel;
+            dto.type = srs.Skill?.Type?.MasterLabel;
+            dto.level = srs.SkillLevel;
+            dto.startDate = srs.EffectiveStartDate;
+            dto.lastModifiedDate = srs.LastModifiedDate;
+            dto.lastModifiedBy = srs.LastModifiedBy?.Name;
+            if (!byUser.containsKey(ownerId)) {
+                byUser.put(ownerId, new List<AgentSkillDto>());
+            }
+            byUser.get(ownerId).add(dto);
+        }
+        return byUser;
+    }
+
+    private static Map<Id, UserServicePresence> loadCurrentPresence() {
         Map<Id, UserServicePresence> presenceByUser = new Map<Id, UserServicePresence>();
         for (UserServicePresence usp : [
             SELECT UserId, ServicePresenceStatus.MasterLabel,
@@ -64,22 +184,32 @@ public with sharing class PanoramaAgentService {
         ]) {
             presenceByUser.put(usp.UserId, usp);
         }
+        return presenceByUser;
+    }
 
-        // Build the set of users to report.
-        Set<Id> userIds = new Set<Id>(presenceByUser.keySet());
-        if (includeAll) {
-            userIds.addAll(loadOmniEnabledUserIds());
+    /**
+     * Build agent DTOs for a set of users, hydrating presence, active work,
+     * channel counts and queue membership. Shared by getAgents and
+     * getAgentsBySkill so both surface identical agent shapes.
+     */
+    private static List<AgentDto> buildAgentDtos(
+        Set<Id> userIds, Map<Id, UserServicePresence> presenceByUser
+    ) {
+        List<AgentDto> result = new List<AgentDto>();
+        if (userIds.isEmpty()) {
+            return result;
         }
 
+        Map<Id, List<WorkItemDto>> workByUser = loadWorkItemsByUser();
+        String orgUrl = Url.getOrgDomainUrl().toExternalForm();
         Map<Id, List<String>> queueIdsByUser = loadQueueIdsByUser(userIds);
-        Map<Id, User> userById = userIds.isEmpty()
-            ? new Map<Id, User>()
-            : new Map<Id, User>([
-                SELECT Id, Name, Title, SmallPhotoUrl
-                FROM User
-                WHERE Id IN :userIds
-                ORDER BY Name
-            ]);
+        Map<Id, List<AgentSkillDto>> skillsByUser = loadSkillsByUser(userIds);
+        Map<Id, User> userById = new Map<Id, User>([
+            SELECT Id, Name, Title, SmallPhotoUrl
+            FROM User
+            WHERE Id IN :userIds
+            ORDER BY Name
+        ]);
 
         for (User u : userById.values()) {
             UserServicePresence usp = presenceByUser.get(u.Id);
@@ -109,10 +239,13 @@ public with sharing class PanoramaAgentService {
             );
             dto.loginMin = usp == null ? 0 : minutesSince(usp.StatusStartDate);
             dto.photo = buildPhotoUrl(orgUrl, u.SmallPhotoUrl);
-            response.agents.add(dto);
+            dto.skills = skillsByUser.containsKey(u.Id)
+                ? skillsByUser.get(u.Id)
+                : new List<AgentSkillDto>();
+            result.add(dto);
         }
 
-        return response;
+        return result;
     }
 
     /**
@@ -245,8 +378,7 @@ public with sharing class PanoramaAgentService {
         return chans;
     }
 
-    @TestVisible
-    private static String mapChannelKey(String devName, String label) {
+    public static String mapChannelKey(String devName, String label) {
         String s = ((devName == null ? '' : devName) + ' ' + (label == null ? '' : label)).toLowerCase();
         if (s.contains('phone') || s.contains('voice') || s.contains('call')) {
             return 'veu';

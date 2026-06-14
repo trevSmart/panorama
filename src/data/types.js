@@ -25,6 +25,7 @@
  * @property {string[]} [queues]
  * @property {string} [photo]
  * @property {object|null} [work]
+ * @property {AgentSkill[]|null} [skills] skills assigned to the agent, embedded on the /agents payload
  * @property {number} [workSec]
  * @property {number} [loginMin]
  * @property {number|null} [lastAccept]
@@ -41,6 +42,39 @@
  * @property {number} [longest]
  * @property {number} [avg]
  * @property {number} [online]
+ */
+
+/**
+ * @typedef {Object} Skill
+ * @property {string} id
+ * @property {string} name
+ * @property {string|null} [type] SkillType label (e.g. 'Language', 'Expertise')
+ * @property {number} [agents] number of qualified agents
+ * @property {number} [backlog] pending work items routed to this skill
+ */
+
+/**
+ * A skill assigned to an agent, with the ServiceResourceSkill relationship data.
+ * @typedef {Object} AgentSkill
+ * @property {string} id ServiceResourceSkill record id
+ * @property {string|null} [skillId]
+ * @property {string} name
+ * @property {string|null} [type]
+ * @property {number|null} [level] skill level
+ * @property {string|null} [startDate] ISO datetime — effective start
+ * @property {string|null} [lastModifiedDate] ISO datetime
+ * @property {string|null} [lastModifiedBy] name of the last modifier
+ */
+
+/**
+ * @typedef {Object} WorkItem
+ * @property {string} id
+ * @property {string} subject
+ * @property {string} [channelKey]
+ * @property {string|null} [queueId]
+ * @property {string|null} [agentId]
+ * @property {'queued'|'assigned'|string} [status]
+ * @property {number} [ageSec] seconds since the item entered its current state
  */
 
 /** @typedef {'mock'|'salesforce'} DataSource */

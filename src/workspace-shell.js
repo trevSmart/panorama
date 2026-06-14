@@ -339,7 +339,7 @@ class TabWorkspace {
         const close = p.pinned
           ? ''
           : `<button type="button" class="ws-tab-close" data-action="close" data-id="${p.id}" aria-label="Close tab">×</button>`;
-        return `<div class="ws-tab${p.id === this.activeId ? ' on' : ''}" data-action="activate" data-id="${p.id}" role="tab" tabindex="${p.id === this.activeId ? '0' : '-1'}" aria-selected="${p.id === this.activeId}">
+        return `<div class="ws-tab${p.id === this.activeId ? ' on' : ''}" data-action="activate" data-id="${p.id}" role="tab" tabindex="${p.id === this.activeId ? '0' : '-1'}" aria-selected="${p.id === this.activeId}" title="${escapeHtml(p.label)}">
             ${icon ? `<span class="ws-tab-icon" aria-hidden="true">${icon}</span>` : ''}<span class="ws-tab-label"><span class="ws-tab-label-text">${escapeHtml(p.label)}</span>${close}</span>
           </div>`;
       })
@@ -445,12 +445,6 @@ class TabWorkspace {
 
     const allTabs = [...this.tabBarEl.querySelectorAll('.ws-tab[data-action="activate"]')];
     const dragIndex = allTabs.indexOf(tab);
-    const tabMidpoints = allTabs
-      .filter((t) => t !== tab)
-      .map((t) => {
-        const r = t.getBoundingClientRect();
-        return r.left + r.width / 2;
-      });
 
     this._dragState = {
       id: tab.dataset.id,
@@ -460,8 +454,6 @@ class TabWorkspace {
       active: false,
       pointerId: e.pointerId,
       dropIndex: dragIndex,
-      tabMidpoints,
-      originalIndex: dragIndex,
     };
 
     document.addEventListener('pointermove', this._onTabPointerMove);
@@ -480,27 +472,72 @@ class TabWorkspace {
       drag.active = true;
       drag.tab.classList.add('is-dragging');
       this.tabBarEl.classList.add('is-reordering');
+      this._beginTabDrag(drag, e.clientX);
+      try {
+        drag.tab.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
     }
 
-    const newIndex = this._dropIndexAt(e.clientX, drag.tabMidpoints);
+    e.preventDefault();
+
+    this._updateDragTabPosition(drag, e.clientX);
+
+    const newIndex = this._dropIndexAt(e.clientX);
     if (newIndex !== drag.dropIndex) {
       drag.dropIndex = newIndex;
-      this._moveDomTabTo(drag.tab, newIndex);
+      this._movePlaceholderTo(drag.placeholder, newIndex);
     }
   }
 
-  _moveDomTabTo(tab, toIndex) {
-    const tabs = [...this.tabBarEl.querySelectorAll('.ws-tab[data-action="activate"]')];
-    const currentIndex = tabs.indexOf(tab);
-    if (currentIndex === toIndex) return;
+  _beginTabDrag(drag, clientX) {
+    const tab = drag.tab;
+    const rect = tab.getBoundingClientRect();
+    drag.grabOffsetX = clientX - rect.left;
 
-    const refTab = tabs[toIndex] ?? null;
-    if (refTab && refTab !== tab) {
-      this.tabBarEl.insertBefore(tab, refTab);
-    } else if (!refTab) {
-      const addBtn = this.tabBarEl.querySelector('.ws-tab-add');
-      this.tabBarEl.insertBefore(tab, addBtn ?? null);
+    const placeholder = document.createElement('div');
+    placeholder.className = 'ws-tab-placeholder';
+    placeholder.style.width = `${rect.width}px`;
+    placeholder.style.height = `${rect.height}px`;
+    placeholder.setAttribute('aria-hidden', 'true');
+    drag.placeholder = placeholder;
+
+    tab.parentNode.insertBefore(placeholder, tab);
+
+    tab.style.position = 'fixed';
+    tab.style.top = `${rect.top}px`;
+    tab.style.left = `${rect.left}px`;
+    tab.style.width = `${rect.width}px`;
+    tab.style.margin = '0';
+    tab.style.zIndex = '50';
+    tab.style.pointerEvents = 'none';
+  }
+
+  _updateDragTabPosition(drag, clientX) {
+    drag.tab.style.left = `${clientX - drag.grabOffsetX}px`;
+  }
+
+  _finishTabDrag(drag) {
+    const { tab, placeholder } = drag;
+    if (placeholder?.isConnected) {
+      this.tabBarEl.insertBefore(tab, placeholder);
+      placeholder.remove();
     }
+    tab.style.position = '';
+    tab.style.top = '';
+    tab.style.left = '';
+    tab.style.width = '';
+    tab.style.margin = '';
+    tab.style.zIndex = '';
+    tab.style.pointerEvents = '';
+  }
+
+  _movePlaceholderTo(placeholder, toIndex) {
+    const tabs = [...this.tabBarEl.querySelectorAll('.ws-tab[data-action="activate"]:not(.is-dragging)')];
+    const addBtn = this.tabBarEl.querySelector('.ws-tab-add');
+    const target = toIndex >= tabs.length ? addBtn : tabs[toIndex];
+    this.tabBarEl.insertBefore(placeholder, target ?? null);
   }
 
   _onTabPointerUp(e) {
@@ -512,6 +549,12 @@ class TabWorkspace {
     document.removeEventListener('pointercancel', this._onTabPointerUp);
 
     if (drag.active) {
+      try {
+        drag.tab.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      this._finishTabDrag(drag);
       const tabs = [...this.tabBarEl.querySelectorAll('.ws-tab[data-action="activate"]')];
       const newOrder = tabs.map((t) => t.dataset.id);
       this.panels.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
@@ -525,11 +568,16 @@ class TabWorkspace {
     this._dragState = null;
   }
 
-  _dropIndexAt(clientX, midpoints) {
-    for (let i = 0; i < midpoints.length; i++) {
-      if (clientX < midpoints[i]) return i;
+  _dropIndexAt(clientX) {
+    const tabs = [...this.tabBarEl.querySelectorAll('.ws-tab[data-action="activate"]')];
+    let insertAt = 0;
+    for (const tab of tabs) {
+      if (tab.classList.contains('is-dragging')) continue;
+      const rect = tab.getBoundingClientRect();
+      if (clientX < rect.left + rect.width / 2) return insertAt;
+      insertAt += 1;
     }
-    return midpoints.length;
+    return insertAt;
   }
 
   _onCatalogClick(e) {
