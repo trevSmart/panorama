@@ -19,6 +19,7 @@ import {
 } from './workspace-state.js';
 import { workspaceTabIconHtml } from './ui/sf-icons.js';
 import { syncDropdownPanel } from './ui/dropdown-panel.js';
+import { devConsole } from './dev/dev-console.js';
 
 const STORAGE_KEY = 'panorama.workspace.v1';
 const PANEL_ATTR = 'data-panel-id';
@@ -204,6 +205,7 @@ class TabWorkspace {
     }
 
     this.activeId = id;
+    devConsole.action('view:switch', panel.viewType);
     this._ensureContainer(panel);
     const el = this.containers.get(id);
     const type = registry.get(panel.viewType);

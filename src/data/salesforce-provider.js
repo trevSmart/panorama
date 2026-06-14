@@ -4,6 +4,7 @@ import { buildFloorsForAgents, TEAM_COLOR, teamOf } from './floor-layout.js';
 import { attachAgentPhotoBlobs, revokeAgentPhotoBlobs } from './agent-photos.js';
 import { normalizeAgent, normalizeAgentSkill, normalizeQueue, normalizeSkill, normalizeWorkRecord } from './normalize.js';
 import { READ_ONLY_CAPABILITIES } from './types.js';
+import { devConsole } from '../dev/dev-console.js';
 
 /**
  * @param {string} apiBaseUrl
@@ -71,6 +72,7 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
   }
 
   async function refresh() {
+    devConsole.action('data:load', 'salesforce');
     const session = await getSession();
     apiBaseUrl = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
 
