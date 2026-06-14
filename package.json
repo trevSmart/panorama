@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node scripts/free-port.js && node src/index.js",
     "dev": "node scripts/free-port.js && PANORAMA_DEV=1 node --watch src/index.js",
-    "test": "node --test"
+    "test": "node --test test/*.test.js"
   },
   "keywords": [],
   "author": "",
