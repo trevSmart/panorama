@@ -2,7 +2,7 @@ const MAX_ENTRIES = 500;
 
 function safeText(arg) {
   if (typeof arg === 'string') return arg;
-  if (arg instanceof Error) return arg.message;
+  if (arg instanceof Error) return arg.stack ?? arg.message;
   try {
     return typeof arg === 'object' && arg !== null ? JSON.stringify(arg) : String(arg);
   } catch {
@@ -16,7 +16,7 @@ export function createDevConsole() {
   let capturing = false;
 
   function emit(event) {
-    for (const fn of subscribers) {
+    for (const fn of [...subscribers]) {
       try { fn(event); } catch { /* ignore subscriber errors */ }
     }
   }
@@ -31,6 +31,7 @@ export function createDevConsole() {
 
   let installed = false;
   let originals = null;
+  let installedTarget = null;
   const LEVELS = ['log', 'info', 'warn', 'error'];
 
   function install(target = globalThis.console) {
@@ -44,14 +45,16 @@ export function createDevConsole() {
         if (typeof orig === 'function') orig.apply(target, args);
       };
     }
+    installedTarget = target;
     installed = true;
   }
 
   function uninstall(target = globalThis.console) {
-    if (!installed || !originals || !target) return;
+    if (!installed || !originals || target !== installedTarget) return;
     for (const level of LEVELS) target[level] = originals[level];
     originals = null;
     installed = false;
+    installedTarget = null;
   }
 
   return {
