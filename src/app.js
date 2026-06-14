@@ -137,6 +137,22 @@ async function initUserMenu(runtimeConfig) {
     setUserMenuOpen(false);
     globalThis.Panorama?.openSettings?.();
   });
+  // Developer mode toggle (no behavior yet, just persisted state)
+  const devModeItem = document.getElementById('userMenuDevMode');
+  if (devModeItem) {
+    const DEV_MODE_KEY = 'panorama.developerMode';
+    const isDevMode = () => localStorage.getItem(DEV_MODE_KEY) === 'true';
+    const applyDevMode = (on) => {
+      devModeItem.setAttribute('aria-checked', on ? 'true' : 'false');
+    };
+    applyDevMode(isDevMode());
+    devModeItem.addEventListener('click', () => {
+      const next = !isDevMode();
+      localStorage.setItem(DEV_MODE_KEY, next ? 'true' : 'false');
+      applyDevMode(next);
+    });
+  }
+
   document.getElementById('userMenuLogout').addEventListener('click', () => {
     logout();
     globalThis.location.reload();

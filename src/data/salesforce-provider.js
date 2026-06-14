@@ -2,7 +2,7 @@ import { recoverAccessSession, getValidAccessSession } from '../auth/salesforce-
 import { CH_LBL } from './channel-labels.js';
 import { buildFloorsForAgents, TEAM_COLOR, teamOf } from './floor-layout.js';
 import { attachAgentPhotoBlobs, revokeAgentPhotoBlobs } from './agent-photos.js';
-import { normalizeAgent, normalizeQueue } from './normalize.js';
+import { normalizeAgent, normalizeAgentSkill, normalizeQueue, normalizeSkill, normalizeWorkRecord } from './normalize.js';
 import { READ_ONLY_CAPABILITIES } from './types.js';
 
 /**
@@ -114,6 +114,64 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
     return allAgents;
   }
 
+  /**
+   * Fetch the skill catalog with backlog/qualified-agent counts.
+   * @returns {Promise<import('./types.js').Skill[]>}
+   */
+  async function refreshSkills() {
+    const session = await getSession();
+    const base = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
+    const res = await apiFetch(base, session.accessToken, '/skills', recoverSession);
+    return (res.skills ?? []).map(normalizeSkill);
+  }
+
+  /**
+   * Fetch the agents qualified for a skill. Same agent shape as /agents, so the
+   * UI reuses the agent card and drawer.
+   * @param {string} skillId
+   * @returns {Promise<import('./types.js').Agent[]>}
+   */
+  async function refreshSkillAgents(skillId) {
+    const session = await getSession();
+    const base = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
+    const res = await apiFetch(
+      base, session.accessToken, `/skills/${encodeURIComponent(skillId)}/agents`, recoverSession);
+    const list = (res.agents ?? []).map((agent) => {
+      const normalized = normalizeAgent(agent);
+      return {
+        ...normalized,
+        recordUrl: normalized.recordUrl || buildSalesforceRecordUrl(session.instanceUrl, normalized.id),
+      };
+    });
+    await attachAgentPhotoBlobs(list, session.accessToken, session.instanceUrl);
+    return list;
+  }
+
+  /**
+   * Fetch the skills assigned to an agent, with the assignment metadata
+   * (level, start date, last-modified audit).
+   * @param {string} agentId the agent's User Id
+   * @returns {Promise<import('./types.js').AgentSkill[]>}
+   */
+  async function refreshAgentSkills(agentId) {
+    const session = await getSession();
+    const base = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
+    const res = await apiFetch(
+      base, session.accessToken, `/agents/${encodeURIComponent(agentId)}/skills`, recoverSession);
+    return (res.skills ?? []).map(normalizeAgentSkill);
+  }
+
+  /**
+   * Fetch work items currently traveling through queues to agents.
+   * @returns {Promise<import('./types.js').WorkItem[]>}
+   */
+  async function refreshWork() {
+    const session = await getSession();
+    const base = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
+    const res = await apiFetch(base, session.accessToken, '/work', recoverSession);
+    return (res.work ?? res.workItems ?? []).map(normalizeWorkRecord);
+  }
+
   /** Connected roster first, then the full Omni-enabled directory cache. */
   function getAgentById(id) {
     if (!id) return null;
@@ -181,6 +239,10 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
     },
     getAgentById,
     getQueues: () => queueState,
+    getSkills: () => refreshSkills(),
+    getSkillAgents: (skillId) => refreshSkillAgents(skillId),
+    getAgentSkills: (agentId) => refreshAgentSkills(agentId),
+    getWork: () => refreshWork(),
     refresh,
     subscribe(fn) {
       listeners.add(fn);

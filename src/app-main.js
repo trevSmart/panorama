@@ -2,11 +2,12 @@ import { agentPhotoSrc } from './data/agent-photos.js';
 import { isLiveDataMode } from './data/mode.js';
 import { buildFloorsForAgents } from './data/floor-layout.js';
 import { loadCustomRoomDir, saveCustomRoomDir } from './data/floor-store.js';
+import { getDetailRecents, setDetailRecentResolver } from './data/detail-recent-store.js';
 import { buildBuildingSVG, computeFloorLayout, gridExtents, rgbc } from './building-render.js';
 import { backgroundUrl } from './data/floor-backgrounds.js';
 import { registerFloorEditorPanel } from './floor-editor.js';
 import { buildAgentQueueSummaries } from './agent-queue-summary.js';
-import { channelIconTileHtml, channelIconName, sfIconColor, sfIconTileHtml } from './ui/sf-icons.js';
+import { channelIconTileHtml, channelIconName, sfIconColor, sfIconTileHtml, skillIconTileHtml } from './ui/sf-icons.js';
 import { formatDurationMin, formatDurationSec, formatWorkTimer } from './ui/duration.js';
 import {
   closeDetailDrawer,
@@ -590,12 +591,236 @@ async function renderAgentsDirectory(container) {
 
 /* ───────── Queues view ───────── */
 function pColor(p) { return p < .5 ? 'var(--ok)' : p < .8 ? 'var(--watch)' : 'var(--alert)'; }
-function renderPlaceholder(container, v) {
-  const P = {
-    work: ['Work in progress', 'All work items traveling through queues to agents, with average handling time per queue and channel.'],
-    skills: ['Backlog by skills', 'Pending items by skill routing: which skills have queue depth and which qualified agents are available.']
+
+/* ───────── Skills directory view ───────── */
+function skillCard(s) {
+  const backlog = Number(s.backlog) || 0;
+  const agents = Number(s.agents) || 0;
+  const bColor = backlog === 0 ? 'var(--ok)' : backlog < 4 ? 'var(--watch)' : 'var(--alert)';
+  return `<button type="button" class="ag-card sk-card" data-skill-id="${detailEsc(s.id)}">
+    <div class="ag-card-av">${skillIconTileHtml({ size: 22 })}</div>
+    <div class="ag-card-body">
+      <div class="ag-card-name">${detailEsc(s.name)}</div>
+      <div class="ag-card-role">${agents} agent${agents === 1 ? '' : 's'} qualificat${agents === 1 ? '' : 's'}</div>
+    </div>
+    <span class="ag-card-status" style="color:${bColor};background:color-mix(in srgb,${bColor} 12%,transparent)"><i style="background:${bColor}"></i>${backlog} pendent${backlog === 1 ? '' : 's'}</span>
+  </button>`;
+}
+function skillsGroupedHTML(list) {
+  if (!list.length) return '<p style="color:var(--faint)">No skills found.</p>';
+  // Group by SkillType, backlog-heaviest skills first within each type. Types
+  // keep first-seen order (the provider already orders skills by type).
+  const groups = new Map();
+  list.forEach(s => {
+    const key = s.type || '_none';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  });
+  let html = '';
+  for (const [key, skills] of groups) {
+    const typeName = key === '_none' ? 'Sense tipus' : key;
+    skills.sort((a, b) => (Number(b.backlog) || 0) - (Number(a.backlog) || 0) || a.name.localeCompare(b.name));
+    html += `<section class="sk-group">
+      <h4>${detailEsc(typeName)} <span class="cnt">${skills.length}</span></h4>
+      <div class="grid ag-grid">${skills.map(skillCard).join('')}</div>
+    </section>`;
+  }
+  return html;
+}
+// Skills loaded by the directory view, kept so the detail drawer can render its
+// header (name/type/counts) without re-fetching the whole catalog.
+let skillCache = [];
+let skillCatalogPromise = null;
+let skillCatalogLoaded = false;
+
+function ensureSkillCatalog() {
+  if (skillCatalogPromise) return skillCatalogPromise;
+  skillCatalogPromise = Promise.resolve().then(async () => {
+    const provider = globalThis.PanoramaProvider;
+    const list = provider?.getSkills
+      ? await provider.getSkills()
+      : (globalThis.SKILLS || []);
+    skillCache = Array.isArray(list) ? list.slice() : [];
+    skillCatalogLoaded = true;
+    return skillCache;
+  }).catch((err) => {
+    skillCatalogPromise = null;
+    throw err;
+  });
+  return skillCatalogPromise;
+}
+
+function findSkill(id) {
+  if (!id) return null;
+  return skillCache.find((s) => s.id === id)
+    || (globalThis.SKILLS || []).find((s) => s.id === id)
+    || null;
+}
+
+function mergeSkillIntoCache(skill) {
+  if (!skill?.id) return;
+  const idx = skillCache.findIndex((s) => s.id === skill.id);
+  if (idx >= 0) skillCache[idx] = skill;
+  else skillCache.push(skill);
+}
+
+let skillsDirectoryToken = 0;
+async function renderSkillsDirectory(container) {
+  const token = ++skillsDirectoryToken;
+  container.innerHTML = `<div class="view">
+    <div class="view-head"><h2>Skills</h2><p>Backlog per skill routing, agrupat per tipus de skill: quins skills tenen profunditat de cua i quants agents qualificats hi ha.</p></div>
+    <div id="skillsDirGroups"><p style="color:var(--faint)">Loading skills…</p></div>
+  </div>`;
+  const groupsEl = container.querySelector('#skillsDirGroups');
+  try {
+    const list = await ensureSkillCatalog();
+    if (token !== skillsDirectoryToken) return; // a newer render superseded this one
+    groupsEl.innerHTML = skillsGroupedHTML(list);
+    groupsEl.querySelectorAll('.sk-card').forEach(c => c.onclick = () => openSkillDrawer(c.dataset.skillId));
+  } catch (err) {
+    if (token !== skillsDirectoryToken) return;
+    console.warn('[Panorama] failed to load skills directory', err);
+    groupsEl.innerHTML = `<p style="color:var(--alert)">Could not load skills: ${err.message}</p>`;
+  }
+}
+
+/* ───────── Skill detail panel ───────── */
+function openSkillDrawer(id) {
+  const skill = findSkill(id);
+  openDetailDrawer({ kind: 'skill', id, name: skill?.name });
+}
+
+// Async fetch of qualified agents into a placeholder; mirrors the loading
+// pattern used by the directory views. Re-entrancy is guarded with a token so a
+// late response from a previous skill can't overwrite a newer one.
+let skillAgentsToken = 0;
+function renderSkillDetail(config) {
+  const s = findSkill(config.id);
+  const esc = detailEsc;
+  if (!s) {
+    if (skillCatalogLoaded) return null;
+    const title = config.name || 'Skill';
+    return {
+      head: `<div class="dr-id">${skillIconTileHtml({ size: 58 })}
+          <div><div class="nm">${esc(title)}</div><div class="rl">Skill</div></div>
+        </div>`,
+      body: '<p style="color:var(--faint)">Loading skill…</p>',
+      afterMount(_root, cfg) {
+        ensureSkillCatalog()
+          .then(() => refreshActiveDetail())
+          .catch((err) => console.warn('[Panorama] failed to load skill catalog', err));
+      },
+    };
+  }
+  const backlog = Number(s.backlog) || 0;
+  const agentCount = Number(s.agents) || 0;
+  const bColor = backlog === 0 ? 'var(--ok)' : backlog < 4 ? 'var(--watch)' : 'var(--alert)';
+  const typeLine = s.type ? esc(s.type) : 'Skill';
+
+  return {
+    head: `<div class="dr-id">${skillIconTileHtml({ size: 58 })}
+        <div><div class="nm">${esc(s.name)}</div><div class="rl">${typeLine}</div>
+          <div class="status-pill" style="color:${bColor};background:color-mix(in srgb,${bColor} 12%,transparent)"><i style="background:${bColor}"></i>${backlog} pendent${backlog === 1 ? '' : 's'}</div>
+        </div>
+      </div>`,
+    body: `<section><h4>Resum</h4><div class="stat-grid">
+        <div class="s"><div class="v">${agentCount}</div><div class="k">Agents qualificats</div></div>
+        <div class="s"><div class="v ${backlog > 4 ? 'warn' : ''}" style="color:${bColor}">${backlog}</div><div class="k">Backlog</div></div>
+      </div></section>
+      <section><h4>Agents qualificats</h4><div class="queue-agent-list" id="skillAgentList"><div class="assigned-queue-empty">Carregant agents…</div></div></section>`,
+    afterMount(root, cfg, ctx) {
+      const list = root.querySelector('#skillAgentList');
+      if (!list) return;
+      const token = ++skillAgentsToken;
+      const provider = globalThis.PanoramaProvider;
+      Promise.resolve(provider?.getSkillAgents ? provider.getSkillAgents(cfg.id) : [])
+        .then((agentsList) => {
+          if (token !== skillAgentsToken) return;
+          list.innerHTML = skillAgentRowsHTML(agentsList || []);
+          list.querySelectorAll('[data-agent-id]').forEach((el) =>
+            el.addEventListener('click', () => ctx.openAgent(el.dataset.agentId)));
+        })
+        .catch((err) => {
+          if (token !== skillAgentsToken) return;
+          console.warn('[Panorama] failed to load skill agents', err);
+          list.innerHTML = `<div class="assigned-queue-empty" style="color:var(--alert)">No s'han pogut carregar els agents: ${esc(err.message)}</div>`;
+        });
+    },
   };
-  container.innerHTML = `<div class="view"><div class="placeholder"><h3>${P[v][0]}</h3><p>${P[v][1]}</p><p style="margin-top:14px;color:var(--accent)">Next iteration screen.</p></div></div>`;
+}
+
+function skillAgentRowsHTML(list) {
+  if (!list.length) return '<div class="assigned-queue-empty">Cap agent qualificat per aquest skill</div>';
+  const order = { online: 0, busy: 1, away: 2, offline: 3 };
+  const sorted = list.slice().sort((a, b) =>
+    (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.name.localeCompare(b.name));
+  return sorted.map((a) => {
+    const st = STATUS[a.status] || STATUS.offline;
+    return `<button type="button" class="queue-agent-row" data-agent-id="${detailEsc(a.id)}">
+      <div class="queue-agent-av">${agentAvatarHTML(a, 'ag-av')}<i class="ag-dot" style="background:${st.c}"></i></div>
+      <div class="queue-agent-copy"><div class="queue-agent-name">${detailEsc(a.name)}</div><div class="queue-agent-role">${detailEsc(a.role || 'Agent')}</div></div>
+      <span class="status-pill" style="color:${st.c};background:color-mix(in srgb,${st.c} 12%,transparent)"><i style="background:${st.c}"></i>${st.lbl}</span>
+    </button>`;
+  }).join('');
+}
+
+/* ───────── Work directory view ───────── */
+function workItemRow(w) {
+  const q = qById(w.queueId);
+  const ag = w.agentId ? findAgent(w.agentId) : null;
+  const assignee = ag ? ag.name : '<span style="color:var(--faint)">A la cua</span>';
+  const qName = q ? q.name : '—';
+  const qColor = q ? (q.color || 'var(--accent)') : 'var(--faint)';
+  return `<div class="wi">
+    <div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div>
+    <div class="info"><div class="t">${detailEsc(w.subject)}</div><div class="m">${CH_LBL[w.channelKey] || 'Canal'} · ${assignee}</div></div>
+    <span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: qColor })}<span style="color:${qColor}">${detailEsc(qName)}</span></span>
+    <span class="age mono">${formatWorkTimer(Number(w.ageSec) || 0)}</span>
+  </div>`;
+}
+function workListHTML(list) {
+  if (!list.length) return '<p style="color:var(--faint)">No work items in flight.</p>';
+  // Group by queue, queued items before assigned within each group, oldest first.
+  const sorted = list.slice().sort((a, b) =>
+    (a.queueId || '').localeCompare(b.queueId || '') ||
+    (a.status === b.status ? 0 : a.status === 'queued' ? -1 : 1) ||
+    (Number(b.ageSec) || 0) - (Number(a.ageSec) || 0));
+  const groups = new Map();
+  sorted.forEach(w => {
+    const key = w.queueId || '_none';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(w);
+  });
+  let html = '';
+  for (const [key, items] of groups) {
+    const q = qById(key);
+    const qName = q ? q.name : 'Sense cua';
+    const qColor = q ? (q.color || 'var(--accent)') : 'var(--faint)';
+    html += `<section class="wk-group">
+      <h4 style="color:${qColor}">${detailEsc(qName)} <span class="cnt">${items.length}</span></h4>
+      <div class="worklist">${items.map(workItemRow).join('')}</div>
+    </section>`;
+  }
+  return html;
+}
+let workDirectoryToken = 0;
+async function renderWorkDirectory(container) {
+  const token = ++workDirectoryToken;
+  container.innerHTML = `<div class="view">
+    <div class="view-head"><h2>Work</h2><p>Tots els work items viatjant per les cues cap als agents, per cua i canal.</p></div>
+    <div id="workDirList"><p style="color:var(--faint)">Loading work…</p></div>
+  </div>`;
+  const listEl = container.querySelector('#workDirList');
+  try {
+    const provider = globalThis.PanoramaProvider;
+    const list = provider?.getWork ? await provider.getWork() : [];
+    if (token !== workDirectoryToken) return; // a newer render superseded this one
+    listEl.innerHTML = workListHTML(list || []);
+  } catch (err) {
+    if (token !== workDirectoryToken) return;
+    console.warn('[Panorama] failed to load work directory', err);
+    listEl.innerHTML = `<p style="color:var(--alert)">Could not load work: ${err.message}</p>`;
+  }
 }
 
 /* ───────── Detail panels (drawer + full-screen tab) ───────── */
@@ -676,15 +901,120 @@ function renderAgentDetail(config) {
         <div class="s"><div class="v">${a.status === 'offline' ? '—' : formatDurationMin(a.loginMin)}</div><div class="k">Loguejat</div></div>
         ${live ? '' : `<div class="s"><div class="v">${a.lastAccept == null ? '—' : formatDurationMin(a.lastAccept)}</div><div class="k">Última feina</div></div>`}
       </div></section>
+      <section><h4>Skills</h4><div class="skill-list" id="agentSkillList"><div class="assigned-queue-empty">Carregant skills…</div></div></section>
       <section><h4>Assigned queues</h4>${assignedQueuesHTML}</section>
       ${timelineSection}
       ${workSection}`,
+    afterMount(root, cfg) {
+      const list = root.querySelector('#agentSkillList');
+      if (!list) return;
+      const token = ++agentSkillsToken;
+      // Skills embedded on the /agents payload are already loaded; render them
+      // directly and skip the per-agent fetch.
+      if (Array.isArray(a.skills)) {
+        list.innerHTML = agentSkillRowsHTML(a.skills);
+        return;
+      }
+      const provider = globalThis.PanoramaProvider;
+      Promise.resolve(provider?.getAgentSkills ? provider.getAgentSkills(cfg.id) : [])
+        .then((skills) => {
+          if (token !== agentSkillsToken) return;
+          list.innerHTML = agentSkillRowsHTML(skills || []);
+        })
+        .catch((err) => {
+          if (token !== agentSkillsToken) return;
+          console.warn('[Panorama] failed to load agent skills', err);
+          list.innerHTML = `<div class="assigned-queue-empty" style="color:var(--alert)">No s'han pogut carregar els skills: ${esc(err.message)}</div>`;
+        });
+    },
   };
+}
+
+// Absolute date formatter for skill-assignment metadata. Locale-aware, short.
+const SKILL_DATE_FMT = new Intl.DateTimeFormat('ca-ES', {
+  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+});
+function formatSkillDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '—' : SKILL_DATE_FMT.format(d);
+}
+
+let agentSkillsToken = 0;
+function agentSkillRowsHTML(list) {
+  if (!list.length) return '<div class="assigned-queue-empty">Aquest agent no té cap skill assignat</div>';
+  const esc = detailEsc;
+  return list.map((s) => {
+    const level = s.level == null ? null : Number(s.level);
+    const levelPill = level == null
+      ? ''
+      : `<span class="skill-level-pill">Nivell ${esc(String(level))}</span>`;
+    return `<div class="skill-row">
+      <div class="skill-row-head">
+        <div class="skill-row-name">${skillIconTileHtml({ size: 20 })}<span>${esc(s.name)}</span>${s.type ? `<span class="skill-type-tag">${esc(s.type)}</span>` : ''}</div>
+        ${levelPill}
+      </div>
+      <dl class="skill-meta">
+        <div><dt>Data d'inici</dt><dd class="mono">${esc(formatSkillDate(s.startDate))}</dd></div>
+        <div><dt>Última modificació</dt><dd class="mono">${esc(formatSkillDate(s.lastModifiedDate))}</dd></div>
+        <div><dt>Modificat per</dt><dd>${esc(s.lastModifiedBy || '—')}</dd></div>
+      </dl>
+    </div>`;
+  }).join('');
 }
 
 function openDrawer(id) {
   openDetailDrawer({ kind: 'agent', id });
 }
+
+function resolveDetailSnapshot(config) {
+  const { kind, id } = config;
+  if (kind === 'agent') {
+    const a = AGENTS.find((x) => x.id === id)
+      || globalThis.PanoramaProvider?.getAgentById?.(id);
+    if (!a) return null;
+    return {
+      kind: 'agent',
+      id: a.id,
+      title: a.name,
+      meta: a.role || 'Agent',
+      status: a.status,
+      flag: Boolean(a.flag),
+    };
+  }
+  if (kind === 'queue') {
+    const q = queueState.find((x) => x.id === id);
+    if (!q) return null;
+    return {
+      kind: 'queue',
+      id: q.id,
+      title: q.name,
+      meta: `${q.backlog} backlog · ${q.online} online`,
+      color: q.color,
+      backlog: q.backlog,
+      online: q.online,
+    };
+  }
+  if (kind === 'skill') {
+    const s = findSkill(id);
+    if (s) {
+      return {
+        kind: 'skill',
+        id: s.id,
+        title: s.name,
+        meta: s.type || `${s.agents} qualified agents`,
+        agents: Number(s.agents) || 0,
+      };
+    }
+    if (config.name) {
+      return { kind: 'skill', id, title: config.name, meta: 'Skill', agents: 0 };
+    }
+    return null;
+  }
+  return null;
+}
+
+setDetailRecentResolver(resolveDetailSnapshot);
 function agentsInQueue(queueId) {
   return AGENTS.filter((a) => (a.queues || []).includes(queueId));
 }
@@ -793,6 +1123,11 @@ registerDetailKind('queue', {
     return sfIconTileHtml('queue', { size: 18, bg: q?.color, className: 'sf-icon-tile ws-tab-icon-tile' });
   },
   render: renderQueueDetail,
+});
+registerDetailKind('skill', {
+  resolveLabel: (config) => findSkill(config.id)?.name || config.name || null,
+  resolveTabIcon: () => skillIconTileHtml({ size: 18, className: 'sf-icon-tile ws-tab-icon-tile' }),
+  render: renderSkillDetail,
 });
 initDetailDrawerChrome();
 
@@ -1003,13 +1338,15 @@ PanoramaWorkspace.registerPanelType({
 PanoramaWorkspace.registerPanelType({
   viewType: 'work',
   defaultLabel: 'Work',
-  mount(container) { renderPlaceholder(container, 'work'); },
+  mount(container) { renderWorkDirectory(container); },
+  activate(container) { renderWorkDirectory(container); },
 });
 
 PanoramaWorkspace.registerPanelType({
   viewType: 'skills',
   defaultLabel: 'Skills',
-  mount(container) { renderPlaceholder(container, 'skills'); },
+  mount(container) { renderSkillsDirectory(container); },
+  activate(container) { renderSkillsDirectory(container); },
 });
 
 registerFloorEditorPanel();
@@ -1057,6 +1394,21 @@ PanoramaWorkspace.init({
   homePanel: { id: 'p-operations', viewType: 'operations', label: 'Home', pinned: true },
 });
 
+function bootstrapSkillDetailTabs() {
+  const needsSkills = PanoramaWorkspace.listPanels().some(
+    (p) => p.viewType === 'detail' && p.config?.kind === 'skill' && p.config?.id,
+  );
+  if (!needsSkills) return;
+  ensureSkillCatalog()
+    .then(() => {
+      PanoramaWorkspace.refreshLabels();
+      refreshActiveDetail();
+    })
+    .catch((err) => console.warn('[Panorama] skill tab bootstrap failed', err));
+}
+
+bootstrapSkillDetailTabs();
+
 PanoramaWorkspace.onChange((event, panel) => {
   if (event === 'activate' && panel.viewType !== 'operations') window.scrollTo(0, 0);
   if (event === 'activate' && panel.viewType === 'detail') refreshActiveDetail();
@@ -1076,6 +1428,7 @@ const GlobalSearch = {
   items: [],
   open: false,
   searchAgents: null,
+  searchSkills: null,
   searchAgentsToken: 0,
 
   init() {
@@ -1101,14 +1454,29 @@ const GlobalSearch = {
     });
     globalThis.PanoramaProvider?.subscribe?.(() => {
       this.searchAgents = null;
+      this.searchSkills = null;
+      if (this.isOpen() && !this.query()) this.renderRecents();
+    });
+    globalThis.PanoramaWorkspace?.onChange?.((event, panel) => {
+      if (event === 'activate' && panel.viewType === 'detail' && this.isOpen() && !this.query()) {
+        this.renderRecents();
+      }
     });
     this.prefetchSearchAgents();
+    this.prefetchSearchSkills();
   },
 
   prefetchSearchAgents() {
     if (!isLiveDataMode()) return;
     this.ensureSearchAgents().catch((err) => {
       console.warn('[Panorama] search agent directory prefetch failed', err);
+    });
+  },
+
+  prefetchSearchSkills() {
+    if (!isLiveDataMode()) return;
+    this.ensureSearchSkills().catch((err) => {
+      console.warn('[Panorama] search skill directory prefetch failed', err);
     });
   },
 
@@ -1129,6 +1497,21 @@ const GlobalSearch = {
     const byId = new Map(directory.map((a) => [a.id, a]));
     for (const a of AGENTS) byId.set(a.id, a);
     return [...byId.values()];
+  },
+
+  async ensureSearchSkills() {
+    if (!isLiveDataMode()) return SKILLS;
+    if (this.searchSkills) return this.searchSkills;
+    const provider = globalThis.PanoramaProvider;
+    if (!provider?.getSkills) return [];
+    const list = await provider.getSkills();
+    this.searchSkills = Array.isArray(list) ? list : [];
+    return this.searchSkills;
+  },
+
+  searchSkillPool() {
+    if (!isLiveDataMode()) return SKILLS;
+    return this.searchSkills?.length ? this.searchSkills : (SKILLS || []);
   },
 
   isOpen() { return this.open; },
@@ -1202,7 +1585,7 @@ const GlobalSearch = {
     return items;
   },
 
-  run(q, agentPool = AGENTS) {
+  run(q, agentPool = AGENTS, skillPool = SKILLS) {
     if (!q) return { agents: [], queues: [], skills: [], workItems: [] };
     const agents = agentPool.filter(a =>
       a.name.toLowerCase().includes(q) ||
@@ -1210,7 +1593,10 @@ const GlobalSearch = {
       teamOf(a).toLowerCase().includes(q)
     ).slice(0, 8);
     const queues = queueState.filter(qu => qu.name.toLowerCase().includes(q)).slice(0, 6);
-    const skills = isLiveDataMode() ? [] : SKILLS.filter(s => s.name.toLowerCase().includes(q)).slice(0, 6);
+    const skills = skillPool.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      (s.type || '').toLowerCase().includes(q)
+    ).slice(0, 6);
     const workItems = this.collectWorkItems()
       .filter(w => w.searchText.includes(q))
       .slice(0, 8);
@@ -1248,7 +1634,7 @@ const GlobalSearch = {
 
   skillItem(s, idx) {
     return `<button type="button" class="qsearch-item${idx === this.activeIdx ? ' on' : ''}" role="option" data-kind="skill" data-id="${s.id}">
-          ${sfIconTileHtml('skill', { size: 30, bg: sfIconColor('skill') })}
+          ${skillIconTileHtml({ size: 30 })}
           <span class="si-main"><div class="si-title">${this.esc(s.name)}</div><div class="si-meta">${s.agents} qualified agents</div></span>
           <span class="si-kbd">Skill</span>
         </button>`;
@@ -1261,6 +1647,60 @@ const GlobalSearch = {
           <span class="si-main"><div class="si-title">${this.esc(w.title)}</div><div class="si-meta">${this.esc(w.agentName)}${w.meta ? ` · ${this.esc(w.meta)}` : ''}</div></span>
           <span class="si-kbd">Work</span>
         </button>`;
+  },
+
+  resolveRecentEntry(entry) {
+    const live = resolveDetailSnapshot({ kind: entry.kind, id: entry.id, name: entry.title });
+    return live || entry;
+  },
+
+  recentItem(entry, idx) {
+    const resolved = this.resolveRecentEntry(entry);
+    if (resolved.kind === 'agent') {
+      return this.agentItem({
+        id: resolved.id,
+        name: resolved.title,
+        role: resolved.meta,
+        status: resolved.status || 'offline',
+        flag: resolved.flag,
+      }, idx);
+    }
+    if (resolved.kind === 'queue') {
+      return this.queueItem({
+        id: resolved.id,
+        name: resolved.title,
+        color: resolved.color || sfIconColor('queue'),
+        backlog: resolved.backlog ?? 0,
+        online: resolved.online ?? 0,
+      }, idx);
+    }
+    return this.skillItem({
+      id: resolved.id,
+      name: resolved.title,
+      agents: resolved.agents ?? 0,
+    }, idx);
+  },
+
+  renderRecents() {
+    const recents = getDetailRecents();
+    if (!recents.length) {
+      this.items = [];
+      this.setContent('<div class="qsearch-hint">Search agents, queues, skills, and work items.<br>Your current view stays unchanged.</div>');
+      return;
+    }
+    const agents = recents.filter((r) => r.kind === 'agent');
+    const queues = recents.filter((r) => r.kind === 'queue');
+    const skills = recents.filter((r) => r.kind === 'skill');
+    this.items = [
+      ...agents.map((r) => ({ kind: r.kind, id: r.id })),
+      ...queues.map((r) => ({ kind: r.kind, id: r.id })),
+      ...skills.map((r) => ({ kind: r.kind, id: r.id })),
+    ];
+    let html = '', idx = 0;
+    if (agents.length) html += this.group('Agents', agents.map((r) => this.recentItem(r, idx++)).join(''));
+    if (queues.length) html += this.group('Queues', queues.map((r) => this.recentItem(r, idx++)).join(''));
+    if (skills.length) html += this.group('Skills', skills.map((r) => this.recentItem(r, idx++)).join(''));
+    this.setContent(html);
   },
 
   maxBodyHeight() {
@@ -1312,16 +1752,15 @@ const GlobalSearch = {
     const token = ++this.searchAgentsToken;
     const q = this.query();
     if (!q) {
-      this.items = [];
-      this.setContent('<div class="qsearch-hint">Search agents, queues, skills, and work items.<br>Your current view stays unchanged.</div>');
+      this.renderRecents();
       return;
     }
-    if (isLiveDataMode() && !this.searchAgents) {
-      this.setContent('<div class="qsearch-hint">Loading agents…</div>');
+    if (isLiveDataMode() && (!this.searchAgents || !this.searchSkills)) {
+      this.setContent('<div class="qsearch-hint">Loading…</div>');
     }
-    await this.ensureSearchAgents();
+    await Promise.all([this.ensureSearchAgents(), this.ensureSearchSkills()]);
     if (token !== this.searchAgentsToken) return;
-    const { agents, queues, skills, workItems } = this.run(q, this.searchAgentPool());
+    const { agents, queues, skills, workItems } = this.run(q, this.searchAgentPool(), this.searchSkillPool());
     this.items = [
       ...agents.map(a => ({ kind: 'agent', id: a.id })),
       ...queues.map(qu => ({ kind: 'queue', id: qu.id })),
@@ -1368,7 +1807,11 @@ const GlobalSearch = {
   select(kind, id) {
     if (kind === 'agent' || kind === 'work') openDrawer(id);
     else if (kind === 'queue') openQueueDrawer(id);
-    else if (kind === 'skill') Panorama.open('skills');
+    else if (kind === 'skill') {
+      const skill = this.searchSkillPool().find((s) => s.id === id);
+      if (skill) mergeSkillIntoCache(skill);
+      openSkillDrawer(id);
+    }
     this.closePanel(true);
   }
 };

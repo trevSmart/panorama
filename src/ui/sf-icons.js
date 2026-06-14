@@ -135,3 +135,8 @@ export function channelIconName(channelKey) {
 export function channelIconTileHtml(channelKey, opts = {}) {
   return sfIconTileHtml(channelIconName(channelKey), opts);
 }
+
+/** Skill entity tiles — accent matches tabs, drawers, and directory cards. */
+export function skillIconTileHtml(opts = {}) {
+  return sfIconTileHtml('skill', { bg: 'var(--accent)', ...opts });
+}
