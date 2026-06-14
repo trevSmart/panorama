@@ -12,13 +12,21 @@ function safeText(arg) {
 
 export function createDevConsole() {
   const entries = [];
+  const subscribers = new Set();
   let capturing = false;
+
+  function emit(event) {
+    for (const fn of subscribers) {
+      try { fn(event); } catch { /* ignore subscriber errors */ }
+    }
+  }
 
   function log(level, ...args) {
     if (!capturing) return;
-    const text = args.map(safeText).join(' ');
-    entries.push({ ts: Date.now(), level, text });
+    const entry = { ts: Date.now(), level, text: args.map(safeText).join(' ') };
+    entries.push(entry);
     if (entries.length > MAX_ENTRIES) entries.shift();
+    emit({ type: 'entry', entry });
   }
 
   return {
@@ -28,6 +36,8 @@ export function createDevConsole() {
     error: (...a) => log('error', ...a),
     action: (...a) => log('action', ...a),
     getEntries: () => entries.slice(),
+    clear() { entries.length = 0; emit({ type: 'clear' }); },
+    subscribe(fn) { subscribers.add(fn); return () => subscribers.delete(fn); },
     setCapturing: (on) => { capturing = !!on; },
     isCapturing: () => capturing,
   };
