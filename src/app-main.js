@@ -57,6 +57,41 @@ function agentMapTipHTML(a) {
   const av = agentAvatarHTML(a);
   return `<div class="tip-row">${av}<div><div class="tn">${a.name}${a.flag ? ' ⚑' : ''}</div><div class="tm">${a.role}</div><div class="tip-st" style="color:${st.c}"><i style="background:${st.c}"></i>${st.lbl}</div></div></div><div class="tl">${detail}</div>`;
 }
+function showRoomTip(tip, clientX, clientY) {
+  if (!tip) return;
+  if (tip.classList.contains('room-tip--anchored') && tip.offsetParent) {
+    const r = tip.offsetParent.getBoundingClientRect();
+    tip.style.left = `${clientX - r.left + 14}px`;
+    tip.style.top = `${clientY - r.top + 14}px`;
+  } else {
+    tip.style.left = `${clientX + 14}px`;
+    tip.style.top = `${clientY + 14}px`;
+  }
+  tip.classList.add('is-visible');
+}
+function hideRoomTip(tip) {
+  tip?.classList.remove('is-visible');
+}
+function ensureRoomTip() {
+  let tip = document.getElementById('roomTip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'roomTip';
+    tip.className = 'room-tip';
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+function mountRoomTip(anchor) {
+  const tip = ensureRoomTip();
+  if (!anchor) return tip;
+  if (tip.parentElement !== anchor) anchor.appendChild(tip);
+  tip.classList.add('room-tip--anchored');
+  return tip;
+}
+function roomTipForCanvas(canvas) {
+  return mountRoomTip(canvas?.querySelector('.room-canvas-stage'));
+}
 function ringSVG(used, max, color, size = 48) {
   const r = (size - 6) / 2, c = 2 * Math.PI * r, f = max ? (used || 0) / max : 0;
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="3.5"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - f)}" style="transition:stroke-dashoffset .6s var(--ease)"/></svg>`;
@@ -150,6 +185,7 @@ function updateRoomPanel() {
   syncTowerDisplayH();
   const b = buildBuilding();
   canvas.innerHTML = buildingCanvasHTML(b);
+  roomTipForCanvas(canvas);
   const statsEl = root.querySelector('.bldg-head .bstats');
   if (statsEl) statsEl.innerHTML = statsHTML({ occ: b.occupied, hot: b.hot });
   attachSeats(root);
@@ -322,7 +358,9 @@ const Scene3D = {
     const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 2000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(W, H);
+    el.style.position = 'relative';
     el.appendChild(renderer.domElement);
+    mountRoomTip(el);
     scene.add(new THREE.HemisphereLight(0xffffff, 0xc7cad2, 1.0));
     const dir = new THREE.DirectionalLight(0xffffff, 0.55); dir.position.set(10, 22, 14); scene.add(dir);
     scene.add(new THREE.AmbientLight(0xffffff, 0.22));
@@ -380,28 +418,30 @@ const Scene3D = {
     let radius = Math.max(26, (maxc - minc) * CELL * 1.5), theta = 0.7, phi = 0.92;
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
     const applyCam = () => { camera.position.set(target.x + radius * Math.sin(phi) * Math.sin(theta), target.y + radius * Math.cos(phi), target.z + radius * Math.sin(phi) * Math.cos(theta)); camera.lookAt(target); };
-    const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), tip = document.getElementById('roomTip');
+    const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+    const roomTip3d = () => mountRoomTip(el);
     const ptrs = new Map(); let moved = 0, lastPinch = 0, hoverId = null;
     const rect = () => renderer.domElement.getBoundingClientRect();
     const pan = (dx, dy) => { const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0), up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1), k = radius * 0.0016; target.addScaledVector(right, -dx * k); target.addScaledVector(up, dy * k); };
     let tipAgentId = null;
     const hover = e => {
+      const tip = roomTip3d();
       const rc = rect(); ndc.x = ((e.clientX - rc.left) / rc.width) * 2 - 1; ndc.y = -((e.clientY - rc.top) / rc.height) * 2 + 1; ray.setFromCamera(ndc, camera); const hit = ray.intersectObjects(pickables, false);
       if (hit.length) {
         const a = AGENTS.find(x => x.id === hit[0].object.userData.id); hoverId = a ? a.id : null;
-        if (a) { if (a.id !== tipAgentId) { tip.innerHTML = agentMapTipHTML(a); tipAgentId = a.id; } tip.style.display = 'block'; tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; el.style.cursor = 'pointer'; }
-      } else { hoverId = null; tipAgentId = null; tip.style.display = 'none'; el.style.cursor = 'grab'; }
+        if (a) { if (a.id !== tipAgentId) { tip.innerHTML = agentMapTipHTML(a); tipAgentId = a.id; } showRoomTip(tip, e.clientX, e.clientY); el.style.cursor = 'pointer'; }
+      } else { hoverId = null; tipAgentId = null; hideRoomTip(tip); el.style.cursor = 'grab'; }
     };
     const onDown = e => { if (el.setPointerCapture) el.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button, shift: e.shiftKey }); moved = 0; };
     const onMove = e => {
-      if (!ptrs.has(e.pointerId)) { hover(e); return; } const p = ptrs.get(e.pointerId), dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy); tip.style.display = 'none';
+      if (!ptrs.has(e.pointerId)) { hover(e); return; } const p = ptrs.get(e.pointerId), dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy); hideRoomTip(roomTip3d());
       if (ptrs.size >= 2) { const v = [...ptrs.values()], d = Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y); if (lastPinch) radius = clamp(radius * (lastPinch / d), 8, 90); lastPinch = d; pan(dx * 0.5, dy * 0.5); }
       else if (p.btn === 2 || p.shift) pan(dx, dy);
       else { theta -= dx * 0.005; phi = clamp(phi - dy * 0.005, 0.18, 1.45); }
     };
-    const onUp = e => { if (ptrs.size === 1 && moved < 5 && hoverId) { tip.style.display = 'none'; openDrawer(hoverId); } ptrs.delete(e.pointerId); if (ptrs.size < 2) lastPinch = 0; };
+    const onUp = e => { if (ptrs.size === 1 && moved < 5 && hoverId) { hideRoomTip(roomTip3d()); openDrawer(hoverId); } ptrs.delete(e.pointerId); if (ptrs.size < 2) lastPinch = 0; };
     const onWheel = e => { e.preventDefault(); radius = clamp(radius * (1 + Math.sign(e.deltaY) * 0.08), 8, 90); };
-    const onCtx = e => e.preventDefault(); const onLeave = () => { tip.style.display = 'none'; };
+    const onCtx = e => e.preventDefault(); const onLeave = () => { hideRoomTip(roomTip3d()); };
     el.addEventListener('pointerdown', onDown); el.addEventListener('pointermove', onMove); el.addEventListener('pointerup', onUp); el.addEventListener('pointercancel', onUp); el.addEventListener('wheel', onWheel, { passive: false }); el.addEventListener('contextmenu', onCtx); el.addEventListener('pointerleave', onLeave);
     const onResize = () => { const w = el.clientWidth, hh = el.clientHeight; if (!w || !hh) return; camera.aspect = w / hh; camera.updateProjectionMatrix(); renderer.setSize(w, hh); };
     window.addEventListener('resize', onResize);
@@ -916,23 +956,25 @@ function buildBuilding(dir) {
 }
 function attachSeats(root) {
   const canvas = root?.querySelector('.room-canvas');
-  if (!canvas || canvas.dataset.seatsBound) return;
+  if (!canvas) return;
+  roomTipForCanvas(canvas);
+  if (canvas.dataset.seatsBound) return;
   canvas.dataset.seatsBound = '1';
-  const tip = document.getElementById('roomTip');
   let tipSeatAgentId = null;
   canvas.addEventListener('mousemove', e => {
+    const tip = roomTipForCanvas(canvas);
     const g = e.target.closest('.seat[data-id]');
-    if (!g) { tipSeatAgentId = null; return; }
+    if (!g) { tipSeatAgentId = null; hideRoomTip(tip); return; }
     const a = AGENTS.find(x => x.id === g.dataset.id);
-    if (!a) { tipSeatAgentId = null; return; }
+    if (!a) { tipSeatAgentId = null; hideRoomTip(tip); return; }
     if (a.id !== tipSeatAgentId) { tip.innerHTML = agentMapTipHTML(a); tipSeatAgentId = a.id; }
-    tip.style.display = 'block'; tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+    showRoomTip(tip, e.clientX, e.clientY);
   });
-  canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; tipSeatAgentId = null; });
+  canvas.addEventListener('mouseleave', () => { hideRoomTip(roomTipForCanvas(canvas)); tipSeatAgentId = null; });
   canvas.addEventListener('click', e => {
     const g = e.target.closest('.seat[data-id]');
     if (!g) return;
-    tip.style.display = 'none';
+    hideRoomTip(roomTipForCanvas(canvas));
     openDrawer(g.dataset.id);
   });
 }

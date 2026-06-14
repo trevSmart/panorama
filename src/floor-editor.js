@@ -1027,7 +1027,7 @@ function mountEditor(container) {
 
   // Persist the current places to localStorage and refresh dependent views.
   // Returns true on success; on failure shows a message and leaves state dirty.
-  function commitToStore(okMsg) {
+  function commitToStore() {
     try {
       const saved = saveCustomRoom(
         state.places.map((p) => ({ id: p.id, name: p.name, floors: p.floors.map(toArrayFloor) })),
@@ -1044,7 +1044,6 @@ function mountEditor(container) {
       setSavedBaseline();
       renderPlaces(); renderGrid(); renderBackgroundControls(); schedulePreview();
       globalThis.refreshFloors?.();
-      if (okMsg) showMsg(okMsg, 'ok');
       return true;
     } catch {
       showMsg('No s\'ha pogut desar: cada planta necessita almenys una cel·la.', 'error');
@@ -1053,7 +1052,7 @@ function mountEditor(container) {
   }
 
   container.querySelector('.fe-save').addEventListener('click', () => {
-    commitToStore('✓ Desat. Les vistes ja mostren el nou disseny.');
+    commitToStore();
   });
   container.querySelector('.fe-reset').addEventListener('click', () => {
     if (!state.dirty || !savedSnapshot) return;
@@ -1065,7 +1064,6 @@ function mountEditor(container) {
     restoring = false;
     updateHistoryButtons();
     globalThis.refreshFloors?.();
-    showMsg('S\'han descartat els canvis no desats.', 'ok');
   });
 
   /* ── initial paint ── */

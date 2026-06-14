@@ -213,6 +213,6 @@ test('buildBuildingSVG renders a background image when configured', () => {
   };
   const svg = buildBuildingSVG([floor], 0, { backgroundUrl });
   assert.match(svg, /class="room-bg"[^>]+opacity="0\.5"/);
-  assert.match(svg, /preserveAspectRatio="xMidYMid meet"/);
+  assert.match(svg, /preserveAspectRatio="xMidYMid slice"/);
   assert.match(svg, new RegExp(`href="${backgroundUrl('image.png')}"`));
 });
