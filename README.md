@@ -1,21 +1,39 @@
-# Salesforce DX Project: Next Steps
+<p align="center">
+  <img src="assets/panorama-logo.png" alt="Panorama" width="280">
+</p>
 
-Now that you’ve created a Salesforce DX project, what’s next? Here are some documentation resources to get you started.
+# Panorama
 
-## How Do You Plan to Deploy Your Changes?
+**Panorama** is the operations supervisor for Salesforce Service Cloud with Omni-Channel. It gives team leads and supervisors a single place to monitor agents, queues, workload, and service levels — with clearer visibility than the standard Omni Supervisor.
 
-Do you want to deploy a set of changes, or create a self-contained application? Choose a [development model](https://developer.salesforce.com/tools/vscode/en/user-guide/development-models).
+Sign in with your Salesforce account. Panorama shows live data from your org: who is online, what is waiting in queue, and where attention is needed.
 
-## Configure Your Salesforce DX Project
+## What you can do
 
-The `sfdx-project.json` file contains useful configuration information for your project. See [Salesforce DX Project Configuration](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_ws_config.htm) in the _Salesforce DX Developer Guide_ for details about this file.
+### Overview
 
-## Read All About It
+See the health of the operation at a glance: average wait time, backlog, agent coverage, SLA, and help requests. The team map shows agents by floor so you can spot gaps and congestion quickly.
 
-- [Salesforce Extensions Documentation](https://developer.salesforce.com/tools/vscode/)
-- [Salesforce CLI Setup Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm)
-- [Salesforce DX Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_intro.htm)
-- [Salesforce CLI Command Reference](https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/cli_reference.htm)
+### Operations
+
+Browse queues and agents in one view. Filter by presence status (online, busy, away, offline) to find available capacity or agents who may need support.
+
+### Work and skills
+
+Track active work and routing by skills. *(More views are being added.)*
+
+### Agent detail
+
+Open any agent to see their status, assigned queues, recent activity, and current work items. From here you can take supervisor actions such as flagging an agent for help, reassigning work, or reviewing queue and skill assignments.
+
+## Getting access
+
+Panorama is provided by your organization. You need:
+
+- A Salesforce user account with supervisor permissions for Omni-Channel
+- Access granted by your admin (same kind of access you would use for Omni Supervisor)
+
+Open the Panorama URL your admin shared with you and sign in when prompted. If you cannot sign in or see no data, contact your Salesforce administrator.
 
 ## Third-Party Assets
 

@@ -15,13 +15,15 @@ public without sharing class PanoramaGroupMembership {
             return byUser;
         }
 
-        Map<Id, Set<Id>> memberToContainers = buildMemberToContainersMap();
+        Map<Id, Set<Id>> reachableByUser = expandReachableContainers(userIds);
         for (Id userId : userIds) {
-            Set<Id> reachable = expandReachableContainers(new Set<Id>{ userId }, memberToContainers);
+            Set<Id> reachable = reachableByUser.get(userId);
             List<String> queueIds = new List<String>();
-            for (Id containerId : reachable) {
-                if (queueGroupIds.contains(containerId)) {
-                    queueIds.add(String.valueOf(containerId));
+            if (reachable != null) {
+                for (Id containerId : reachable) {
+                    if (queueGroupIds.contains(containerId)) {
+                        queueIds.add(String.valueOf(containerId));
+                    }
                 }
             }
             byUser.put(userId, queueIds);
@@ -29,46 +31,58 @@ public without sharing class PanoramaGroupMembership {
         return byUser;
     }
 
+    /**
+     * Resolve every group each seed user reaches, directly or through nested
+     * group membership. The traversal is a breadth-first walk over GroupMember,
+     * querying only the current frontier each level (UserOrGroupId IN :frontier)
+     * instead of loading every membership in the org. That keeps the result
+     * scoped to the seeds — so callers (and tests) never pick up unrelated
+     * memberships — and bounds the SOQL to the depth of the group hierarchy.
+     *
+     * @return reachable container ids keyed by seed user id (excludes the seed).
+     */
     @TestVisible
-    private static Map<Id, Set<Id>> buildMemberToContainersMap() {
-        Map<Id, Set<Id>> memberToContainers = new Map<Id, Set<Id>>();
-        for (GroupMember gm : [
-            SELECT UserOrGroupId, GroupId
-            FROM GroupMember
-            LIMIT 10000
-        ]) {
-            if (!memberToContainers.containsKey(gm.UserOrGroupId)) {
-                memberToContainers.put(gm.UserOrGroupId, new Set<Id>());
-            }
-            memberToContainers.get(gm.UserOrGroupId).add(gm.GroupId);
+    private static Map<Id, Set<Id>> expandReachableContainers(Set<Id> seeds) {
+        Map<Id, Set<Id>> reachableByUser = new Map<Id, Set<Id>>();
+        // Track which seed users each frontier member descends from, so a shared
+        // intermediate group propagates to every user that reaches it.
+        Map<Id, Set<Id>> seedsByMember = new Map<Id, Set<Id>>();
+        Set<Id> frontier = new Set<Id>();
+        for (Id seed : seeds) {
+            reachableByUser.put(seed, new Set<Id>());
+            seedsByMember.put(seed, new Set<Id>{ seed });
+            frontier.add(seed);
         }
-        return memberToContainers;
-    }
 
-    @TestVisible
-    private static Set<Id> expandReachableContainers(
-        Set<Id> seeds,
-        Map<Id, Set<Id>> memberToContainers
-    ) {
-        Set<Id> reachable = new Set<Id>(seeds);
-        Set<Id> frontier = new Set<Id>(seeds);
-
+        Set<Id> visited = new Set<Id>(frontier);
         while (!frontier.isEmpty()) {
-            Set<Id> nextFrontier = new Set<Id>();
-            for (Id memberId : frontier) {
-                Set<Id> containers = memberToContainers.get(memberId);
-                if (containers == null) {
+            Map<Id, Set<Id>> nextSeedsByMember = new Map<Id, Set<Id>>();
+            for (GroupMember gm : [
+                SELECT UserOrGroupId, GroupId
+                FROM GroupMember
+                WHERE UserOrGroupId IN :frontier
+                LIMIT 10000
+            ]) {
+                Set<Id> originSeeds = seedsByMember.get(gm.UserOrGroupId);
+                if (originSeeds == null) {
                     continue;
                 }
-                for (Id containerId : containers) {
-                    if (!reachable.contains(containerId)) {
-                        reachable.add(containerId);
-                        nextFrontier.add(containerId);
+                for (Id seed : originSeeds) {
+                    reachableByUser.get(seed).add(gm.GroupId);
+                }
+                if (!visited.contains(gm.GroupId)) {
+                    if (!nextSeedsByMember.containsKey(gm.GroupId)) {
+                        nextSeedsByMember.put(gm.GroupId, new Set<Id>());
                     }
+                    nextSeedsByMember.get(gm.GroupId).addAll(originSeeds);
                 }
             }
-            frontier = nextFrontier;
+
+            frontier = nextSeedsByMember.keySet().clone();
+            visited.addAll(frontier);
+            seedsByMember = nextSeedsByMember;
         }
-        return reachable;
+
+        return reachableByUser;
     }
 }

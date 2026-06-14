@@ -1,4 +1,4 @@
-import { handleOAuthCallback, ensureAuthenticated, isOAuthCallbackPath, getOAuthCallbackError, getOAuthSession, logout } from './auth/salesforce-oauth.js';
+import { handleOAuthCallback, ensureAuthenticated, beginLogin, isOAuthCallbackPath, getOAuthCallbackError, getOAuthSession, logout } from './auth/salesforce-oauth.js';
 import { installDataLayer, loadAppConfig } from './install-data.js';
 
 function showOAuthError(message) {
@@ -20,7 +20,13 @@ if (isOAuthCallbackPath()) {
       globalThis.location.replace('/');
     } catch (err) {
       console.error('[Panorama] OAuth callback failed', err);
-      showOAuthError(err.message);
+      if (/mismatched state|missing.*state/i.test(err.message || '')) {
+        logout();
+        console.info('[Panorama] Restarting OAuth login after stale callback.');
+        await beginLogin(runtimeConfig);
+      } else {
+        showOAuthError(err.message);
+      }
     }
   }
 } else {
@@ -33,8 +39,14 @@ if (isOAuthCallbackPath()) {
     provider = await installDataLayer(runtimeConfig);
   } catch (err) {
     console.error('[Panorama] Failed to load Salesforce data', err);
-    document.body.innerHTML = `<pre style="padding:24px;font-family:monospace;white-space:pre-wrap">Failed to load Salesforce data: ${err.message}</pre>`;
-    throw err;
+    const authError = /401|INVALID_SESSION|Not authenticated|invalid_grant/i.test(err.message || '');
+    if (runtimeConfig.dataSource === 'salesforce' && authError) {
+      logout();
+      await ensureAuthenticated(runtimeConfig);
+    } else {
+      document.body.innerHTML = `<pre style="padding:24px;font-family:monospace;white-space:pre-wrap">Failed to load Salesforce data: ${err.message}</pre>`;
+      throw err;
+    }
   }
   globalThis.__panoramaRuntimeConfig = runtimeConfig;
   await import('./app-main.js');
@@ -109,9 +121,13 @@ async function initUserMenu(runtimeConfig) {
     globalThis.location.reload();
   });
 
+  const openSalesforceItem = document.getElementById('userMenuOpenSF');
+  const openSalesforceSetupItem = document.getElementById('userMenuOpenSFSetup');
+
   // Load Salesforce user info
   if (runtimeConfig.dataSource !== 'salesforce') {
-    document.getElementById('userMenuOpenSF').hidden = true;
+    openSalesforceItem.hidden = true;
+    openSalesforceSetupItem.hidden = true;
     return;
   }
 
@@ -147,19 +163,27 @@ async function initUserMenu(runtimeConfig) {
       avatar.textContent = initials;
     }
 
-    // Open Salesforce link uses instanceUrl
-    document.getElementById('userMenuOpenSF').addEventListener('click', () => {
+    // Open Salesforce links use instanceUrl from the active OAuth session.
+    openSalesforceItem.addEventListener('click', () => {
       menu.classList.remove('open');
       window.open(session.instanceUrl, '_blank', 'noopener');
+    });
+    openSalesforceSetupItem.addEventListener('click', () => {
+      menu.classList.remove('open');
+      window.open(`${session.instanceUrl}/lightning/setup/SetupOneHome/home`, '_blank', 'noopener');
     });
   } catch (err) {
     console.warn('[Panorama] user info fetch failed', err);
     // Fallback: still wire up Open Salesforce with whatever session we have
     const session = getOAuthSession();
     if (session?.instanceUrl) {
-      document.getElementById('userMenuOpenSF').addEventListener('click', () => {
+      openSalesforceItem.addEventListener('click', () => {
         menu.classList.remove('open');
         window.open(session.instanceUrl, '_blank', 'noopener');
+      });
+      openSalesforceSetupItem.addEventListener('click', () => {
+        menu.classList.remove('open');
+        window.open(`${session.instanceUrl}/lightning/setup/SetupOneHome/home`, '_blank', 'noopener');
       });
     }
   }

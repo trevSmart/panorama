@@ -1,4 +1,4 @@
-import { getValidAccessSession } from '../auth/salesforce-oauth.js';
+import { recoverAccessSession, getValidAccessSession } from '../auth/salesforce-oauth.js';
 import { CH_LBL } from './channel-labels.js';
 import { buildFloorsForAgents, TEAM_COLOR, teamOf } from './floor-layout.js';
 import { attachAgentPhotoBlobs, revokeAgentPhotoBlobs } from './agent-photos.js';
@@ -8,9 +8,12 @@ import { READ_ONLY_CAPABILITIES } from './types.js';
 /**
  * @param {string} apiBaseUrl
  * @param {string} accessToken
+ * @param {string} path
+ * @param {() => Promise<import('../auth/salesforce-oauth.js').OAuthSession>} recoverSession
  * @param {RequestInit} [init]
+ * @param {boolean} [retried]
  */
-async function apiFetch(apiBaseUrl, accessToken, path, init) {
+async function apiFetch(apiBaseUrl, accessToken, path, recoverSession, init, retried = false) {
   const url = `${apiBaseUrl.replace(/\/$/, '')}${path}`;
   const res = await fetch(url, {
     credentials: 'omit',
@@ -23,6 +26,10 @@ async function apiFetch(apiBaseUrl, accessToken, path, init) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
+    if (!retried && /INVALID_SESSION_ID|Session expired or invalid/i.test(body)) {
+      const session = await recoverSession();
+      return apiFetch(apiBaseUrl, session.accessToken, path, recoverSession, init, true);
+    }
     throw new Error(`Panorama API ${res.status}: ${body || res.statusText}`);
   }
   return res.json();
@@ -46,8 +53,10 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
   const listeners = new Set();
   /** @type {ReturnType<typeof setInterval>|null} */
   let pollTimer = null;
+  const pollIntervalMs = 15000;
   /** @type {string} */
   let apiBaseUrl = runtimeConfig.apiBaseUrl;
+  const recoverSession = () => recoverAccessSession(runtimeConfig);
   /** All Omni-enabled agents (connected or not), populated on demand. */
   /** @type {import('./types.js').Agent[]} */
   let allAgents = [];
@@ -66,8 +75,8 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
     apiBaseUrl = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
 
     const [agentsRes, queuesRes] = await Promise.all([
-      apiFetch(apiBaseUrl, session.accessToken, '/agents'),
-      apiFetch(apiBaseUrl, session.accessToken, '/queues'),
+      apiFetch(apiBaseUrl, session.accessToken, '/agents', recoverSession),
+      apiFetch(apiBaseUrl, session.accessToken, '/queues', recoverSession),
     ]);
     agents.splice(0, agents.length, ...(agentsRes.agents ?? []).map((agent) => {
       const normalized = normalizeAgent(agent);
@@ -92,7 +101,7 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
   async function refreshAllAgents() {
     const session = await getSession();
     const base = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
-    const res = await apiFetch(base, session.accessToken, '/agents?scope=all');
+    const res = await apiFetch(base, session.accessToken, '/agents?scope=all', recoverSession);
     const list = (res.agents ?? []).map((agent) => {
       const normalized = normalizeAgent(agent);
       return {
@@ -128,15 +137,20 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
     };
   }
 
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(() => {
+      refresh().catch((err) => console.warn('[Panorama] poll failed', err));
+    }, pollIntervalMs);
+  }
+
   return {
     source: 'salesforce',
     capabilities: READ_ONLY_CAPABILITIES,
 
     async init() {
       await refresh();
-      pollTimer = setInterval(() => {
-        refresh().catch((err) => console.warn('[Panorama] poll failed', err));
-      }, 15000);
+      startPolling();
     },
 
     destroy() {
