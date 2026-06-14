@@ -827,10 +827,7 @@ async function renderWorkDirectory(container) {
     const list = provider?.getWork ? await provider.getWork() : [];
     if (token !== workDirectoryToken) return; // a newer render superseded this one
     listEl.innerHTML = workListHTML(list || []);
-  } catch (err) {
-    if (token !== workDirectoryToken) return;
-    console.warn('[Panorama] failed to load work directory', err);
-    listEl.innerHTML = `<p style="color:var(--alert)">Could not load work: ${err.message}</p>`;
+    listEl.innerHTML = `<p style="color:var(--alert)">Could not load work: ${detailEsc(err?.message || String(err))}</p>`;
   }
 }
 
