@@ -35,8 +35,8 @@ export function reconcileGrid(container, items, opts) {
   // can skip touching it when nothing changed.
   const existing = new Map();
   for (const node of Array.from(container.children)) {
-    const key = node.dataset ? node.dataset.id : undefined;
-    if (key != null && key !== '' && !existing.has(key)) existing.set(key, node);
+    const key = node._reconcileKey ?? (node.dataset ? node.dataset.id : undefined);
+    if (key != null && key !== '' && !existing.has(String(key))) existing.set(String(key), node);
     else container.removeChild(node); // stray/placeholder/duplicate node
   }
 
@@ -49,13 +49,20 @@ export function reconcileGrid(container, items, opts) {
     if (node) {
       existing.delete(key);
       if (node._renderedHTML !== html) {
-        node.innerHTML = html;
+        const next = createNode(html);
+        if (typeof node.removeAttribute === 'function' && node.attributes && next?.attributes) {
+          for (const { name } of Array.from(node.attributes)) node.removeAttribute(name);
+          for (const { name, value } of Array.from(next.attributes)) node.setAttribute(name, value);
+        }
+        node.innerHTML = next?.innerHTML ?? html;
         node._renderedHTML = html;
       }
     } else {
       node = createNode(html);
       node._renderedHTML = html;
     }
+
+    node._reconcileKey = key;
 
     if (cursor === node) {
       cursor = node.nextSibling;
