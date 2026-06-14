@@ -691,10 +691,7 @@ async function renderSkillsDirectory(container) {
     if (token !== skillsDirectoryToken) return; // a newer render superseded this one
     groupsEl.innerHTML = skillsGroupedHTML(list);
     groupsEl.querySelectorAll('.sk-card').forEach(c => c.onclick = () => openSkillDrawer(c.dataset.skillId));
-  } catch (err) {
-    if (token !== skillsDirectoryToken) return;
-    console.warn('[Panorama] failed to load skills directory', err);
-    groupsEl.innerHTML = `<p style="color:var(--alert)">Could not load skills: ${err.message}</p>`;
+    groupsEl.innerHTML = `<p style="color:var(--alert)">Could not load skills: ${detailEsc(err?.message || String(err))}</p>`;
   }
 }
 
