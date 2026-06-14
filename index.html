@@ -39,6 +39,7 @@
       --topbar-h: 58px;
       --tabbar-h: 38px;
       --chrome-h: calc(var(--topbar-h) + var(--tabbar-h));
+      --dev-console-height: 0px;
     }
 
     * {
@@ -381,7 +382,7 @@
     }
 
     .workspace {
-      min-height: calc(100vh - var(--chrome-h))
+      min-height: calc(100vh - var(--chrome-h) - var(--dev-console-height))
     }
 
     .ws-stage {
@@ -618,7 +619,7 @@
       position: absolute;
       top: calc(100% + 8px);
       right: 0;
-      min-width: 180px;
+      min-width: 260px;
       background: var(--surface, #fff);
       border: 1px solid var(--line, #e8e6e2);
       border-radius: 10px;
@@ -1070,7 +1071,7 @@
       max-width: none;
       margin: 0;
       padding: 0;
-      height: calc(100vh - var(--chrome-h));
+      height: calc(100vh - var(--chrome-h) - var(--dev-console-height));
       display: flex;
       flex-direction: column;
       overflow: hidden
@@ -2045,7 +2046,7 @@
     }
 
     .view-detail {
-      height: calc(100vh - var(--chrome-h));
+      height: calc(100vh - var(--chrome-h) - var(--dev-console-height));
       overflow-y: auto;
       background: var(--bg-tint)
     }
@@ -2945,7 +2946,7 @@
       max-width: none;
       margin: 0;
       padding: 0;
-      height: calc(100vh - var(--chrome-h));
+      height: calc(100vh - var(--chrome-h) - var(--dev-console-height));
       display: flex;
       flex-direction: column;
       overflow: hidden;
