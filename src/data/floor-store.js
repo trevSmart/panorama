@@ -5,7 +5,7 @@
  *   v: 3,
  *   dir: 0-3,
  *   activePlaceId: string,
- *   places: [{ id, name, floors: [{ name, cells, seats, openings, dividers }] }]
+ *   places: [{ id, name, floors: [{ name, cells, seats, openings, dividers, background?, backgroundOpacity? }] }]
  * }
  *
  * v1/v2 stored a flat `floors` array and migrate into a single default place.
@@ -14,6 +14,7 @@
  * cells, stored in canonical form (E/S only). Invalid entries are dropped on
  * load.
  */
+import { sanitizeBackgroundId, sanitizeBackgroundOpacity } from './floor-backgrounds.js';
 import { sanitizeOpenings, sanitizeDividers } from './wall-edges.js';
 
 // Storage slot id; the document's own schema version lives in the JSON `v` field.
@@ -65,7 +66,9 @@ export function sanitizeFloors(raw) {
     const cellset = new Set(cells.map(([cc, rr]) => `${cc},${rr}`));
     const openings = sanitizeOpenings(f.openings, cellset);
     const dividers = sanitizeDividers(f.dividers, cellset);
-    floors.push({ name, cells, seats, openings, dividers });
+    const background = sanitizeBackgroundId(f.background);
+    const backgroundOpacity = sanitizeBackgroundOpacity(f.backgroundOpacity);
+    floors.push({ name, cells, seats, openings, dividers, background, backgroundOpacity });
   }
   return floors;
 }

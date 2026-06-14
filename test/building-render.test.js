@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { backgroundUrl } from '../src/data/floor-backgrounds.js';
 import { buildBuildingSVG } from '../src/building-render.js';
 
 const TW = 34;
@@ -199,4 +200,19 @@ test('rendering without openings field is tolerated', () => {
     assigned: [],
   };
   assert.doesNotThrow(() => buildBuildingSVG([floor], 0));
+});
+
+test('buildBuildingSVG renders a background image when configured', () => {
+  const floor = {
+    name: 'Room',
+    cells: [[0, 0], [1, 0]],
+    cellset: new Set(['0,0', '1,0']),
+    assigned: [],
+    background: 'image.png',
+    backgroundOpacity: 0.5,
+  };
+  const svg = buildBuildingSVG([floor], 0, { backgroundUrl });
+  assert.match(svg, /class="room-bg"[^>]+opacity="0\.5"/);
+  assert.match(svg, /preserveAspectRatio="xMidYMid meet"/);
+  assert.match(svg, new RegExp(`href="${backgroundUrl('image.png')}"`));
 });

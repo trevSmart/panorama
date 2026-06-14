@@ -11,6 +11,7 @@ import {
   saveCustomRoom,
   saveCustomRoomDir,
 } from '../src/data/floor-store.js';
+import { DEFAULT_BG_OPACITY } from '../src/data/floor-backgrounds.js';
 
 const STORAGE_KEY = 'panorama.customFloors.v1';
 
@@ -30,7 +31,15 @@ beforeEach(() => {
 });
 
 function oneFloor(name = 'Main room') {
-  return [{ name, cells: [[0, 0], [1, 0]], seats: [[1, 0]], openings: [], dividers: [] }];
+  return [{
+    name,
+    cells: [[0, 0], [1, 0]],
+    seats: [[1, 0]],
+    openings: [],
+    dividers: [],
+    background: null,
+    backgroundOpacity: DEFAULT_BG_OPACITY,
+  }];
 }
 
 test('room definition stores sanitized floors and rotation direction together', () => {
@@ -44,7 +53,7 @@ test('room definition stores sanitized floors and rotation direction together', 
     v: 3,
     dir: 2,
     activePlaceId: 'default',
-    places: [{ id: 'default', name: 'Lloc 1', floors: [{ name: 'Main room', cells: [[0, 0], [1, 0]], seats: [[1, 0]], openings: [], dividers: [] }] }],
+    places: [{ id: 'default', name: 'Lloc 1', floors: [{ name: 'Main room', cells: [[0, 0], [1, 0]], seats: [[1, 0]], openings: [], dividers: [], background: null, backgroundOpacity: DEFAULT_BG_OPACITY }] }],
   });
 });
 
@@ -173,4 +182,44 @@ test('saveCustomFloors persists dividers under v3', () => {
   const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
   assert.equal(stored.v, 3);
   assert.deepEqual(stored.places[0].floors[0].dividers, [{ c: 0, r: 0, edge: 'E' }]);
+});
+
+test('sanitizeFloors keeps valid backgrounds and drops unknown ids', () => {
+  const floors = sanitizeFloors([
+    {
+      name: 'Room',
+      cells: [[0, 0]],
+      seats: [],
+      background: 'image.png',
+      backgroundOpacity: 1.5,
+    },
+    {
+      name: 'Room 2',
+      cells: [[0, 0]],
+      seats: [],
+      background: 'not-real.png',
+      backgroundOpacity: -0.2,
+    },
+  ]);
+  assert.equal(floors[0].background, 'image.png');
+  assert.equal(floors[0].backgroundOpacity, 1);
+  assert.equal(floors[1].background, null);
+  assert.equal(floors[1].backgroundOpacity, 0);
+});
+
+test('saveCustomFloors persists background settings under v3', () => {
+  saveCustomFloors([
+    {
+      name: 'R',
+      cells: [[0, 0], [1, 0]],
+      seats: [],
+      openings: [],
+      dividers: [],
+      background: 'image copy 2.png',
+      backgroundOpacity: 0.35,
+    },
+  ], 0);
+  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+  assert.equal(stored.places[0].floors[0].background, 'image copy 2.png');
+  assert.equal(stored.places[0].floors[0].backgroundOpacity, 0.35);
 });

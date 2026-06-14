@@ -6,6 +6,11 @@ import {
   makePlaceId,
 } from './data/floor-store.js';
 import { buildBuildingSVG } from './building-render.js';
+import {
+  DEFAULT_BG_OPACITY,
+  FLOOR_BACKGROUNDS,
+  backgroundUrl,
+} from './data/floor-backgrounds.js';
 import { rotateLeftIconHtml, rotateRightIconHtml } from './ui/rotate-icons.js';
 import { exteriorEdges, interiorEdges, canonicalDivider, sanitizeOpenings, sanitizeDividers } from './data/wall-edges.js';
 
@@ -45,6 +50,8 @@ function toSetFloor(f) {
     seats: new Set(f.seats.map(([c, r]) => key(c, r))),
     openings: openingsToMap(f.openings),
     dividers: dividersToSet(f.dividers),
+    background: f.background || null,
+    backgroundOpacity: f.backgroundOpacity ?? DEFAULT_BG_OPACITY,
   };
 }
 function toArrayFloor(f) {
@@ -56,6 +63,8 @@ function toArrayFloor(f) {
     seats: [...f.seats].map(parseKey),
     openings,
     dividers,
+    background: f.background || null,
+    backgroundOpacity: f.backgroundOpacity ?? DEFAULT_BG_OPACITY,
   };
 }
 function cloneFloor(f) {
@@ -65,6 +74,8 @@ function cloneFloor(f) {
     seats: new Set(f.seats),
     openings: new Map(f.openings),
     dividers: new Set(f.dividers),
+    background: f.background || null,
+    backgroundOpacity: f.backgroundOpacity ?? DEFAULT_BG_OPACITY,
   };
 }
 function duplicateFloorName(name, floors) {
@@ -228,6 +239,15 @@ function mountEditor(container) {
             <div class="fe-side-title">Llocs <button class="fe-add-place">+ Lloc</button></div>
             <div class="fe-place-list"></div>
           </section>
+          <section class="fe-background">
+            <div class="fe-side-title">Room background</div>
+            <div class="fe-bg-picker" role="radiogroup" aria-label="Room background"></div>
+            <label class="fe-bg-opacity">
+              <span>Opacity</span>
+              <input type="range" class="fe-bg-opacity-range" min="0" max="100" step="1" value="45" />
+              <span class="fe-bg-opacity-val mono">45%</span>
+            </label>
+          </section>
           <section class="fe-preview">
             <div class="fe-side-title">Previsualització
               <div class="fe-rotate">
@@ -241,6 +261,9 @@ function mountEditor(container) {
       </div>
     </div>`;
 
+  const bgPickerEl = container.querySelector('.fe-bg-picker');
+  const bgOpacityRange = container.querySelector('.fe-bg-opacity-range');
+  const bgOpacityVal = container.querySelector('.fe-bg-opacity-val');
   const gridEl = container.querySelector('.fe-grid');
   const listEl = container.querySelector('.fe-place-list');
   const previewEl = container.querySelector('.fe-preview-canvas');
@@ -282,6 +305,7 @@ function mountEditor(container) {
     syncDirty();
     renderPlaces();
     renderGrid();
+    renderBackgroundControls();
     schedulePreview();
     updateHistoryButtons();
   }
@@ -359,17 +383,25 @@ function mountEditor(container) {
 
   /* ── preview (rAF-batched) ── */
   let previewQueued = false;
-  function renderPreview() {
-    const f = curFloor();
+  function buildPreviewOpts(extra = {}) {
+    return { backgroundUrl, ...extra };
+  }
+  function floorDecorated(f) {
     const arr = toArrayFloor(f);
-    previewEl.innerHTML = buildBuildingSVG([{
+    return [{
       name: arr.name,
       cells: arr.cells,
       cellset: new Set(f.cells),
       assigned: arr.seats.map(([c, r]) => ({ c, r })),
       openings: arr.openings,
       dividers: arr.dividers,
-    }], state.previewDir, { headroom: 10 });
+      background: arr.background,
+      backgroundOpacity: arr.backgroundOpacity,
+    }];
+  }
+  function renderPreview() {
+    const f = curFloor();
+    previewEl.innerHTML = buildBuildingSVG(floorDecorated(f), state.previewDir, buildPreviewOpts({ headroom: 10 }));
   }
   function schedulePreview() {
     if (previewQueued) return;
@@ -379,19 +411,40 @@ function mountEditor(container) {
 
   /* ── place + floor list ── */
   function makeFloorThumb(f) {
-    const arr = toArrayFloor(f);
-    const decorated = [{
-      name: arr.name,
-      cells: arr.cells,
-      cellset: new Set(f.cells),
-      assigned: arr.seats.map(([c, r]) => ({ c, r })),
-      openings: arr.openings,
-      dividers: arr.dividers,
-    }];
     const thumb = document.createElement('div');
     thumb.className = 'fe-floor-thumb';
-    thumb.innerHTML = buildBuildingSVG(decorated, state.previewDir, { headroom: 4 });
+    thumb.innerHTML = buildBuildingSVG(floorDecorated(f), state.previewDir, buildPreviewOpts({ headroom: 4 }));
     return thumb;
+  }
+
+  function renderBackgroundControls() {
+    const f = curFloor();
+    const activeId = f.background || '';
+    const pct = Math.round((f.backgroundOpacity ?? DEFAULT_BG_OPACITY) * 100);
+    bgOpacityRange.value = String(pct);
+    bgOpacityVal.textContent = `${pct}%`;
+    const disabled = !f.background;
+    bgOpacityRange.disabled = disabled;
+    bgOpacityRange.classList.toggle('disabled', disabled);
+    bgPickerEl.innerHTML = '';
+    const noneBtn = document.createElement('button');
+    noneBtn.type = 'button';
+    noneBtn.className = 'fe-bg-option' + (activeId ? '' : ' on');
+    noneBtn.dataset.bg = '';
+    noneBtn.title = 'No background';
+    noneBtn.setAttribute('aria-label', 'No background');
+    noneBtn.innerHTML = '<span class="fe-bg-none">None</span>';
+    bgPickerEl.appendChild(noneBtn);
+    FLOOR_BACKGROUNDS.forEach((bg) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'fe-bg-option' + (activeId === bg.id ? ' on' : '');
+      btn.dataset.bg = bg.id;
+      btn.title = bg.label;
+      btn.setAttribute('aria-label', bg.label);
+      btn.innerHTML = `<img src="${encodeURI(bg.url)}" alt="" loading="lazy"/>`;
+      bgPickerEl.appendChild(btn);
+    });
   }
 
   function startRename(nameEl, target, onDone) {
@@ -428,16 +481,17 @@ function mountEditor(container) {
       seats: new Set(),
       openings: new Map(),
       dividers: new Set(),
+      background: null,
+      backgroundOpacity: DEFAULT_BG_OPACITY,
     });
     state.activePlaceId = place.id;
     state.active = place.floors.length - 1;
     syncDirty();
     renderPlaces();
     renderGrid();
+    renderBackgroundControls();
     schedulePreview();
   }
-
-  let floorDrag = null;
 
   function floorDropIndex(listEl, clientY) {
     const rows = [...listEl.querySelectorAll('.fe-floor')];
@@ -564,6 +618,7 @@ function mountEditor(container) {
         state.active = Math.min(state.active, place.floors.length - 1);
         renderPlaces();
         renderGrid();
+        renderBackgroundControls();
         schedulePreview();
       });
       placeName.addEventListener('dblclick', (e) => {
@@ -587,6 +642,7 @@ function mountEditor(container) {
         syncDirty();
         renderPlaces();
         renderGrid();
+        renderBackgroundControls();
         schedulePreview();
       });
 
@@ -635,6 +691,7 @@ function mountEditor(container) {
           state.active = i;
           renderPlaces();
           renderGrid();
+          renderBackgroundControls();
           schedulePreview();
         });
         name.addEventListener('dblclick', (e) => {
@@ -653,6 +710,7 @@ function mountEditor(container) {
           syncDirty();
           renderPlaces();
           renderGrid();
+          renderBackgroundControls();
           schedulePreview();
         });
         cloneBtn.addEventListener('click', (e) => {
@@ -666,6 +724,7 @@ function mountEditor(container) {
           syncDirty();
           renderPlaces();
           renderGrid();
+          renderBackgroundControls();
           schedulePreview();
         });
         floorList.appendChild(row);
@@ -692,6 +751,8 @@ function mountEditor(container) {
         seats: new Set(),
         openings: new Map(),
         dividers: new Set(),
+        background: null,
+        backgroundOpacity: DEFAULT_BG_OPACITY,
       }],
     });
     state.activePlaceId = id;
@@ -699,6 +760,7 @@ function mountEditor(container) {
     syncDirty();
     renderPlaces();
     renderGrid();
+    renderBackgroundControls();
     schedulePreview();
   });
 
@@ -909,6 +971,35 @@ function mountEditor(container) {
     });
   });
 
+  bgPickerEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.fe-bg-option');
+    if (!btn) return;
+    const next = btn.dataset.bg || null;
+    const f = curFloor();
+    if ((f.background || null) === next) return;
+    pushUndo();
+    f.background = next;
+    syncDirty();
+    renderBackgroundControls();
+    renderPlaces();
+    schedulePreview();
+  });
+
+  bgOpacityRange.addEventListener('input', () => {
+    const f = curFloor();
+    const pct = Number(bgOpacityRange.value);
+    bgOpacityVal.textContent = `${pct}%`;
+    if (!f.background) return;
+    f.backgroundOpacity = pct / 100;
+    schedulePreview();
+  });
+  bgOpacityRange.addEventListener('change', () => {
+    if (!curFloor().background) return;
+    pushUndo();
+    syncDirty();
+    renderPlaces();
+  });
+
   undoBtn.addEventListener('click', undo);
   redoBtn.addEventListener('click', redo);
 
@@ -951,7 +1042,7 @@ function mountEditor(container) {
       state.activePlaceId = saved.activePlaceId;
       state.active = Math.min(state.active, curFloors().length - 1);
       setSavedBaseline();
-      renderPlaces(); renderGrid(); schedulePreview();
+      renderPlaces(); renderGrid(); renderBackgroundControls(); schedulePreview();
       globalThis.refreshFloors?.();
       if (okMsg) showMsg(okMsg, 'ok');
       return true;
@@ -982,5 +1073,6 @@ function mountEditor(container) {
   updateHistoryButtons();
   renderPlaces();
   renderGrid();
+  renderBackgroundControls();
   renderPreview();
 }

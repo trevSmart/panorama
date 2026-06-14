@@ -767,7 +767,6 @@
     }
 
     .pillar:hover {
-      transform: translateY(-3px);
       box-shadow: var(--shadow-lift);
       border-color: var(--line-2)
     }
@@ -1215,7 +1214,6 @@
     }
 
     .ag-card:hover {
-      transform: translateY(-3px);
       box-shadow: var(--shadow-lift);
       border-color: var(--line-2)
     }
@@ -1323,7 +1321,6 @@
     }
 
     .card:hover {
-      transform: translateY(-3px);
       box-shadow: var(--shadow-lift);
       border-color: var(--line-2)
     }
@@ -1673,7 +1670,6 @@
     }
 
     .qcard:hover {
-      transform: translateY(-3px);
       box-shadow: var(--shadow-lift)
     }
 
@@ -2058,8 +2054,7 @@
 
     .queue-agent-row:hover {
       border-color: var(--line-2);
-      box-shadow: var(--shadow);
-      transform: translateY(-1px)
+      box-shadow: var(--shadow)
     }
 
     .queue-agent-av {
@@ -3426,6 +3421,76 @@
       height: auto;
       max-height: 420px;
       display: block
+    }
+
+    .fe-bg-picker {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+      gap: 8px;
+      margin-bottom: 12px
+    }
+
+    .fe-bg-option {
+      aspect-ratio: 4/3;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      padding: 0;
+      overflow: hidden;
+      background: var(--surface-2);
+      cursor: pointer;
+      transition: border-color .12s var(--ease), box-shadow .12s var(--ease)
+    }
+
+    .fe-bg-option img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block
+    }
+
+    .fe-bg-option .fe-bg-none {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      font-size: 11px;
+      color: var(--dim);
+      font-weight: 600
+    }
+
+    .fe-bg-option:hover {
+      border-color: var(--accent-soft)
+    }
+
+    .fe-bg-option.on {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft)
+    }
+
+    .fe-bg-opacity {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12.5px;
+      color: var(--dim)
+    }
+
+    .fe-bg-opacity input[type=range] {
+      flex: 1;
+      min-width: 0
+    }
+
+    .fe-bg-opacity input[type=range].disabled,
+    .fe-bg-opacity input[type=range]:disabled {
+      opacity: .45;
+      cursor: not-allowed
+    }
+
+    .fe-bg-opacity-val {
+      min-width: 38px;
+      text-align: right;
+      color: var(--ink)
     }
 
     @media (max-width:1100px) {

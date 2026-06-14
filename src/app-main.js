@@ -3,6 +3,7 @@ import { isLiveDataMode } from './data/mode.js';
 import { buildFloorsForAgents } from './data/floor-layout.js';
 import { loadCustomRoomDir, saveCustomRoomDir } from './data/floor-store.js';
 import { buildBuildingSVG, computeFloorLayout, gridExtents, rgbc } from './building-render.js';
+import { backgroundUrl } from './data/floor-backgrounds.js';
 import { registerFloorEditorPanel } from './floor-editor.js';
 import { buildAgentQueueSummaries } from './agent-queue-summary.js';
 import { channelIconTileHtml, channelIconName, sfIconColor, sfIconTileHtml } from './ui/sf-icons.js';
@@ -821,7 +822,7 @@ function computeFloorStack(floors, opts) {
 function getFixedFloorOffsets(dir, gMaxC, gMaxR, minH, maxH, TH) {
   if (fixedFloorLayout.dir === dir && fixedFloorLayout.offsets) return fixedFloorLayout.offsets;
   const { offsets } = computeFloorLayout(FLOORS, dir, gMaxC, gMaxR, {
-    minH, maxH, TH, beaconPad: 24, marginMin: 14, marginBase: 28
+    minH, maxH, TH, beaconPad: 28, marginMin: 36, floorGapExtra: 80,
   });
   fixedFloorLayout.offsets = offsets;
   fixedFloorLayout.dir = dir;
@@ -898,6 +899,7 @@ function buildBuilding(dir) {
   const svg = buildBuildingSVG(FLOORS, dir, {
     meta,
     floorOffsets,
+    backgroundUrl,
     seatParts(s, ctx) {
       const a = s.agent; const { x, y, TW, TH } = ctx;
       if (!a) return { cube: ctx.vacantCircle(x, y) };

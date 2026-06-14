@@ -155,10 +155,8 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
     capabilities: READ_ONLY_CAPABILITIES,
 
     async init() {
-      await Promise.all([
-        refresh(),
-        refreshAllAgents().catch((err) => console.warn('[Panorama] all-agents prefetch failed', err)),
-      ]);
+      await refresh();
+      await refreshAllAgents().catch((err) => console.warn('[Panorama] all-agents prefetch failed', err));
       startPolling();
     },
 
