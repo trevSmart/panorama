@@ -150,6 +150,7 @@ async function initUserMenu(runtimeConfig) {
       const next = !isDevMode();
       localStorage.setItem(DEV_MODE_KEY, next ? 'true' : 'false');
       applyDevMode(next);
+      window.dispatchEvent(new CustomEvent('panorama:devmode', { detail: { on: next } }));
     });
   }
 
