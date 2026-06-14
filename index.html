@@ -11,6 +11,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    @property --dev-console-height {
+      syntax: '<length>';
+      inherits: true;
+      initial-value: 0px;
+    }
+
     :root {
       --bg: #F6F5F2;
       --bg-tint: #FBFAF8;
@@ -62,6 +68,10 @@
       -webkit-font-smoothing: antialiased;
       background-image: radial-gradient(1100px 600px at 75% -15%, rgba(0, 128, 190, .05), transparent 60%);
       background-attachment: fixed;
+    }
+
+    body.dev-console-transitioning {
+      transition: --dev-console-height 180ms var(--ease);
     }
 
     .mono {
@@ -738,6 +748,7 @@
       right: 0;
       bottom: 0;
       height: var(--dev-console-height, 240px);
+      overflow: hidden;
       background: #1a1916;
       color: #e8e6e2;
       display: flex;
@@ -749,6 +760,75 @@
     }
 
     .dev-console[hidden] { display: none }
+
+    .dev-console--minimized .dev-console-resize,
+    .dev-console--minimized .dev-console-body,
+    .dev-console--minimized .dev-console-title,
+    .dev-console--minimized .dev-console-search,
+    .dev-console--minimized .dev-console-filter,
+    .dev-console--minimized .dev-console-toolbar,
+    .dev-console--minimized .dev-console-actions [data-action="clear"] {
+      display: none
+    }
+
+    .dev-console-head-hit {
+      flex: 1;
+      min-width: 12px;
+      align-self: stretch;
+      cursor: pointer
+    }
+
+    .dev-console--minimized .dev-console-head-hit {
+      display: none
+    }
+
+    .dev-console-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0
+    }
+
+    .dev-console--minimized .dev-console-toolbar {
+      display: none
+    }
+
+    .dev-console-preview {
+      display: none;
+      flex: 1;
+      min-width: 0;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 180ms var(--ease);
+    }
+
+    .dev-console--minimized .dev-console-preview {
+      display: flex;
+      opacity: 1;
+    }
+
+    .dev-console--minimized .dev-console-head {
+      border-bottom: none;
+      cursor: pointer
+    }
+
+    .dev-console-preview .dev-console-msg {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .dev-console-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-shrink: 0
+    }
 
     .dev-console-resize {
       height: 6px;
@@ -794,7 +874,6 @@
     .dev-console-filter[aria-pressed="true"] { opacity: 1; background: rgba(255, 255, 255, .2) }
 
     .dev-console-btn {
-      margin-left: auto;
       background: none;
       border: none;
       color: inherit;
@@ -819,6 +898,7 @@
     .dev-console-level--warn { color: #f0b429 }
     .dev-console-level--error { color: #ff6b6b }
     .dev-console-level--action { color: #7ee787 }
+    .dev-console-level--api { color: #c9a0ff }
 
     /* ── Overview ── */
     .ov {

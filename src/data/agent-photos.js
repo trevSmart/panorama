@@ -1,4 +1,5 @@
 import { isLiveDataMode } from './mode.js';
+import { devConsole } from '../dev/dev-console.js';
 
 /** @type {Map<string, string>} */
 const blobUrlsByAgentId = new Map();
@@ -57,6 +58,7 @@ async function loadAgentPhotoBlob(agentId, photoUrl, accessToken) {
 
   const task = (async () => {
     try {
+      devConsole.api('GET', '/api/salesforce/photo');
       const res = await fetch(
         `/api/salesforce/photo?${buildPhotoProxyParams(photoUrl)}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },

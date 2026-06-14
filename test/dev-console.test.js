@@ -17,8 +17,8 @@ test('log adds an entry with level and text', () => {
 test('convenience methods set their level', () => {
   const dc = createDevConsole();
   dc.setCapturing(true);
-  dc.info('a'); dc.warn('b'); dc.error('c'); dc.action('d');
-  assert.deepEqual(dc.getEntries().map(e => e.level), ['info', 'warn', 'error', 'action']);
+  dc.info('a'); dc.warn('b'); dc.error('c'); dc.action('d'); dc.api('GET', '/agents');
+  assert.deepEqual(dc.getEntries().map(e => e.level), ['info', 'warn', 'error', 'action', 'api']);
 });
 
 test('does not capture when capturing is off', () => {

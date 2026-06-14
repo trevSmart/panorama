@@ -30,6 +30,20 @@ const devReloadSnippet = devMode
   ? '<script>new EventSource("/api/dev/reload").onmessage=function(){location.reload()};</script>'
   : "";
 
+let devReloadTimer;
+function scheduleDevReload() {
+  clearTimeout(devReloadTimer);
+  devReloadTimer = setTimeout(() => {
+    for (const client of devReloadClients) {
+      try {
+        client.write("data: reload\n\n");
+      } catch {
+        devReloadClients.delete(client);
+      }
+    }
+  }, 80);
+}
+
 createServer(async (req, res) => {
   const pathname = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
 
@@ -75,7 +89,9 @@ createServer(async (req, res) => {
       const html = body.toString("utf8").replace("</body>", `${devReloadSnippet}</body>`);
       body = Buffer.from(html, "utf8");
     }
-    res.writeHead(200, { "Content-Type": type }).end(body);
+    const headers = { "Content-Type": type };
+    if (devMode) headers["Cache-Control"] = "no-store";
+    res.writeHead(200, headers).end(body);
   } catch {
     res.writeHead(404).end("Not found");
   }
@@ -84,12 +100,12 @@ createServer(async (req, res) => {
   console.log(`panorama: Salesforce OAuth callback → http://localhost:${port}/oauth/callback`);
 
   if (devMode) {
-    for (const dir of ["index.html", "assets", "src"]) {
-      watch(join(root, dir), { recursive: true }, () => {
-        for (const client of devReloadClients) {
-          client.write("data: reload\n\n");
-        }
-      });
+    // Watch project root for index.html (editors often save via rename).
+    watch(root, (_event, filename) => {
+      if (filename === "index.html") scheduleDevReload();
+    });
+    for (const dir of ["assets", "src"]) {
+      watch(join(root, dir), { recursive: true }, () => scheduleDevReload());
     }
   }
 });

@@ -63,6 +63,7 @@ export function createDevConsole() {
     warn: (...a) => log('warn', ...a),
     error: (...a) => log('error', ...a),
     action: (...a) => log('action', ...a),
+    api: (...a) => log('api', ...a),
     getEntries: () => entries.slice(),
     clear() { entries.length = 0; emit({ type: 'clear' }); },
     subscribe(fn) { subscribers.add(fn); return () => subscribers.delete(fn); },

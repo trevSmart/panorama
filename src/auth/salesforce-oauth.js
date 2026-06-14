@@ -4,6 +4,7 @@ import {
   initOAuthSessionStorage,
   persistOAuthSession,
 } from './oauth-session-storage.js';
+import { devConsole } from '../dev/dev-console.js';
 
 const STORAGE_PREFIX = 'panorama.oauth.';
 const PKCE_VERIFIER_KEY = `${STORAGE_PREFIX}pkce_verifier`;
@@ -86,6 +87,7 @@ function isSessionValid(session) {
  * @param {{ sfClientId: string, sfLoginUrl: string, sfRedirectUri: string }} config
  */
 export function beginLogin(config) {
+  devConsole.action('auth:login');
   const verifier = randomVerifier();
   const state = randomVerifier(32);
   storageSet(PKCE_VERIFIER_KEY, verifier, true);
@@ -145,10 +147,12 @@ export async function handleOAuthCallback(config) {
     expiresAt: Date.now() + (Number(payload.expires_in) || 7200) * 1000,
   };
   await persistOAuthSession(session);
+  devConsole.action('auth:callback', 'ok');
   return session;
 }
 
 async function requestTokenExchange(body) {
+  devConsole.api('POST', '/api/oauth/token');
   const res = await fetch('/api/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -177,6 +181,7 @@ function isRefreshAuthFailure(err) {
  * @returns {Promise<OAuthSession>}
  */
 export async function recoverAccessSession(config) {
+  devConsole.action('auth:session:recover');
   const session = getOAuthSession();
   if (!session?.refreshToken) {
     logout();
@@ -215,6 +220,7 @@ async function refreshAccessToken(config, session) {
     expiresAt: Date.now() + (Number(payload.expires_in) || 7200) * 1000,
   };
   await persistOAuthSession(next);
+  devConsole.action('auth:session:refresh');
   return next;
 }
 
@@ -260,6 +266,7 @@ export async function getValidAccessSession(config) {
 }
 
 export function logout() {
+  devConsole.action('auth:logout');
   clearOAuthSessionStorage();
   storageRemove(PKCE_VERIFIER_KEY, true);
   storageRemove(STATE_KEY, true);

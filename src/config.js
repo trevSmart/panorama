@@ -1,3 +1,5 @@
+import { devConsole } from './dev/dev-console.js';
+
 /** @typedef {import('./data/types.js').DataSource} DataSource */
 
 /**
@@ -35,6 +37,7 @@ export async function loadRuntimeConfig() {
   /** @type {Partial<RuntimeConfig>} */
   let serverConfig = {};
   try {
+    devConsole.api('GET', '/api/config');
     const res = await fetch('/api/config', { headers: { Accept: 'application/json' } });
     if (res.ok) {
       serverConfig = await res.json();
