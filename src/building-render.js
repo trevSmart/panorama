@@ -128,7 +128,7 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
   };
   const seatParts = opts.seatParts || ((s, ctx) => ({ cube: vacantCircle(ctx.x, ctx.y) }));
 
-  const LABEL_GAP = 28;
+  const LABEL_GAP = 32;
   if (opts.meta) opts.meta.anchors = [];
   const floorXBounds = floors.map((f) => {
     let floorMinX = 1e9, floorMaxX = -1e9;
@@ -255,7 +255,9 @@ export function buildBuildingSVG(floors, dir = 0, opts = {}) {
         const by = fTopY - pad;
         const bw = Math.max(1, (fMaxX - fMinX) + pad * 2);
         const bh = Math.max(1, (fBottomY - fTopY) + pad * 2);
-        fBackground = `<image class="room-bg" href="${href}" x="${bx}" y="${by}" width="${bw}" height="${bh}" preserveAspectRatio="xMidYMid meet" opacity="${f.backgroundOpacity}"/>`;
+        // slice: fill the room bounds and clip overflow so the visible background
+        // matches the room aspect ratio (meet letterboxes and leaves floor exposed).
+        fBackground = `<image class="room-bg" href="${href}" x="${bx}" y="${by}" width="${bw}" height="${bh}" preserveAspectRatio="xMidYMid slice" opacity="${f.backgroundOpacity}"/>`;
       }
     }
     // Topmost point actually drawn on this floor (slab, or tallest tower/beacon
