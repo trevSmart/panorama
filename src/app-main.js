@@ -691,6 +691,9 @@ async function renderSkillsDirectory(container) {
     if (token !== skillsDirectoryToken) return; // a newer render superseded this one
     groupsEl.innerHTML = skillsGroupedHTML(list);
     groupsEl.querySelectorAll('.sk-card').forEach(c => c.onclick = () => openSkillDrawer(c.dataset.skillId));
+  } catch (err) {
+    if (token !== skillsDirectoryToken) return;
+    console.warn('[Panorama] failed to load skills directory', err);
     groupsEl.innerHTML = `<p style="color:var(--alert)">Could not load skills: ${detailEsc(err?.message || String(err))}</p>`;
   }
 }
@@ -834,6 +837,9 @@ async function renderWorkDirectory(container) {
     const list = provider?.getWork ? await provider.getWork() : [];
     if (token !== workDirectoryToken) return; // a newer render superseded this one
     listEl.innerHTML = workListHTML(list || []);
+  } catch (err) {
+    if (token !== workDirectoryToken) return;
+    console.warn('[Panorama] failed to load work directory', err);
     listEl.innerHTML = `<p style="color:var(--alert)">Could not load work: ${detailEsc(err?.message || String(err))}</p>`;
   }
 }
