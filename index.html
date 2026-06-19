@@ -2202,6 +2202,14 @@
       color: #fff
     }
 
+    .skill-editor-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .skill-editor { background: var(--bg, #fff); border-radius: 12px; width: min(420px, 90vw); max-height: 80vh; display: flex; flex-direction: column; }
+    .skill-editor header, .skill-editor footer { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
+    .skill-editor .se-list { overflow: auto; padding: 8px 16px; }
+    .se-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    .se-row .se-name { flex: 1; }
+    .se-level { width: 56px; }
+
     .dr-body {
       padding: 22px
     }

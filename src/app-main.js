@@ -18,6 +18,7 @@ import {
   registerDetailPanelType,
 } from './ui/detail-panel.js';
 import { syncDropdownPanel } from './ui/dropdown-panel.js';
+import { openSkillEditor } from './ui/skill-edit.js';
 import { enhanceAllSelects, syncCustomSelect } from './ui/custom-select.js';
 import { devConsole } from './dev/dev-console.js';
 import { consolePanel } from './dev/console-panel.js';
@@ -942,6 +943,12 @@ function renderAgentDetail(config) {
           console.warn('[Panorama] failed to load agent skills', err);
           list.innerHTML = `<div class="assigned-queue-empty" style="color:var(--alert)">No s'han pogut carregar els skills: ${esc(err.message)}</div>`;
         });
+      const editBtn = root.querySelector('.js-edit-skills');
+      if (editBtn) {
+        editBtn.onclick = () => openSkillEditor(editBtn.dataset.agent, {
+          onSaved: () => openDrawer(editBtn.dataset.agent), // re-render drawer with fresh skills
+        });
+      }
     },
   };
 }
