@@ -7,6 +7,7 @@ export const WORKSPACE_TAB_ICONS = {
   operations: { ref: 'custom:custom107', bg: '#5867E8' },
   'floor-editor': { ref: 'custom:custom24', bg: '#939393' },
   agents: { ref: 'custom:custom103', bg: '#34BECD' },
+  queues: { ref: 'standard:queue', bg: '#5867E8' },
   work: { ref: 'standard:work_order_item', bg: '#6E4534' },
   skills: { ref: 'standard:skill', bg: '#F88962' },
 };
