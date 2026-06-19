@@ -8,11 +8,12 @@
 La Home (vista `operations`) mostra una secció de cues (`#sec-queues`) i una
 d'agents (`#sec-agents`). Els agents, a més, tenen una **vista dedicada**
 (`viewType: 'agents'`, `renderAgentsDirectory`), però les cues no en tenen cap.
-Aquesta asimetria es nota també als pillars de la Home: els pillars d'espera,
-backlog i SLA estan marcats amb `view: 'queues'`
-([src/app-main.js](../../../src/app-main.js) línies 111, 115, 123) però
-`'queues'` no està registrat com a panel, de manera que la navegació no porta
-enlloc.
+(Nota: els pillars d'espera/backlog/SLA de la Home porten `view: 'queues'`,
+però l'usen com a **àncora de scroll** dins la mateixa Home —
+`pillarsHTML` fa `Panorama.scrollTo('queues')`, no `Panorama.open`. Per tant
+NO naveguen a cap pestanya dedicada, ni abans ni després d'aquesta feina;
+afegir el panel `queues` no canvia aquest comportament. Verificat al
+navegador.)
 
 Tot el necessari per renderitzar cues ja existeix: l'estat global `queueState`,
 `provider.getQueues()` ([src/data/salesforce-provider.js:258](../../../src/data/salesforce-provider.js)),
