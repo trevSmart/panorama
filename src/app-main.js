@@ -878,9 +878,17 @@ function renderAgentDetail(config) {
   const salesforceLink = a.recordUrl
     ? `<a class="dr-action-link" href="${esc(a.recordUrl)}" target="_blank" rel="noopener noreferrer" aria-label="View ${esc(a.name)} in Salesforce">View in Salesforce</a>`
     : '';
+  const caps = globalThis.PanoramaProvider?.capabilities || {};
+  const skillsBtn = caps.canChangeSkills
+    ? `<button class="js-edit-skills" data-agent="${esc(a.id)}">✦ Canviar skills</button>`
+    : '';
+  // Reassign / queues / flag have no backend path yet → mock-only.
+  const mockActions = live
+    ? ''
+    : `<button class="primary">⚑ Atendre bandera</button><button>↪ Reassignar</button><button>≋ Canviar cues</button>`;
   const drawerActions = live
-    ? salesforceLink
-    : `${salesforceLink}<button class="primary">⚑ Atendre bandera</button><button>↪ Reassignar</button><button>≋ Canviar cues</button><button>✦ Canviar skills</button>`;
+    ? `${salesforceLink}${skillsBtn}`
+    : `${salesforceLink}${mockActions}<button class="js-edit-skills" data-agent="${esc(a.id)}">✦ Canviar skills</button>`;
   const timelineSection = live
     ? ''
     : `<section><h4>Timeline — últimes 3 h</h4>
