@@ -45,6 +45,10 @@ global with sharing class PanoramaApi {
         try {
             if (path.startsWith('/agents/') && path.endsWith('/skills')) {
                 String userId = path.substring('/agents/'.length(), path.length() - '/skills'.length());
+                if (req.requestBody == null || String.isBlank(req.requestBody.toString())) {
+                    writeJson(res, 400, new Map<String, Object>{ 'error' => 'Empty request body' });
+                    return;
+                }
                 Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(req.requestBody.toString());
                 List<Object> raw = (List<Object>) body.get('changes');
                 List<PanoramaSkillService.SkillChange> changes = new List<PanoramaSkillService.SkillChange>();

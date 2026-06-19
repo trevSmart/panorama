@@ -81,11 +81,13 @@ export async function openSkillEditor(agentId, opts = {}) {
     };
   });
 
-  overlay.querySelector('.se-save').onclick = async () => {
+  const saveBtn = overlay.querySelector('.se-save');
+  saveBtn.onclick = async () => {
+    saveBtn.disabled = true;
     const selected = [];
     overlay.querySelectorAll('.se-check:checked').forEach((chk) => {
       const lvl = overlay.querySelector(`.se-level[data-skill="${chk.dataset.skill}"]`);
-      selected.push({ skillId: chk.dataset.skill, level: lvl ? Number(lvl.value) : null });
+      selected.push({ skillId: chk.dataset.skill, level: lvl ? Math.min(10, Math.max(1, Number(lvl.value) || 1)) : null });
     });
     const currentArr = Array.from(currentMap.values());
     const changes = diffSkills(currentArr, selected);
@@ -98,6 +100,7 @@ export async function openSkillEditor(agentId, opts = {}) {
       opts.onSaved?.();
     } catch (err) {
       errEl.textContent = `No s'ha pogut desar: ${err.message}`;
+      saveBtn.disabled = false;
     }
   };
 }

@@ -125,10 +125,6 @@ public with sharing class PanoramaSkillService {
         return countAgents(assignments);
     }
 
-    /**
-     * Fold resource→skill assignments into per-skill distinct-resource counts.
-     * Pure over its input (no SOQL) so it stays unit-testable.
-     */
     public class SkillChange {
         public Id skillId;
         public Double level;
@@ -140,6 +136,8 @@ public with sharing class PanoramaSkillService {
         public List<ServiceResourceSkill> toUpdate = new List<ServiceResourceSkill>();
         public List<ServiceResourceSkill> toDelete = new List<ServiceResourceSkill>();
     }
+
+    public class PanoramaSkillException extends Exception {}
 
     /**
      * Pure diff between an agent's current ServiceResourceSkill rows and the
@@ -178,7 +176,7 @@ public with sharing class PanoramaSkillService {
     /**
      * Apply skill changes for an agent. Resolves the ServiceResource from the
      * User, computes the diff against current assignments, CRUD-checks, and runs
-     * the DML. Throws AuraHandledException-style message via PanoramaApiException
+     * the DML. Throws AuraHandledException-style message via PanoramaSkillException
      * if the running user lacks permission.
      */
     public static void updateAgentSkills(Id userId, List<SkillChange> changes) {
@@ -203,8 +201,10 @@ public with sharing class PanoramaSkillService {
         if (!diff.toDelete.isEmpty()) { delete diff.toDelete; }
     }
 
-    public class PanoramaSkillException extends Exception {}
-
+    /**
+     * Fold resource→skill assignments into per-skill distinct-resource counts.
+     * Pure over its input (no SOQL) so it stays unit-testable.
+     */
     @TestVisible
     private static Map<Id, Integer> countAgents(List<ServiceResourceSkill> assignments) {
         Map<Id, Set<Id>> resourcesBySkill = new Map<Id, Set<Id>>();
