@@ -34,6 +34,14 @@ export function diffSkills(current, selected) {
  * @param {string} agentId
  * @param {{ onSaved?: () => void }} [opts]
  */
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export async function openSkillEditor(agentId, opts = {}) {
   const provider = globalThis.PanoramaProvider;
   if (!provider?.updateAgentSkills) return;
@@ -52,9 +60,9 @@ export async function openSkillEditor(agentId, opts = {}) {
         const sel = currentMap.get(s.id);
         const level = sel?.level ?? 1;
         return `<label class="se-row">
-          <input type="checkbox" class="se-check" data-skill="${s.id}" ${sel ? 'checked' : ''}>
-          <span class="se-name">${s.name}</span>
-          <input type="number" min="1" max="10" class="se-level" data-skill="${s.id}" value="${level}" ${sel ? '' : 'disabled'}>
+          <input type="checkbox" class="se-check" data-skill="${esc(s.id)}" ${sel ? 'checked' : ''}>
+          <span class="se-name">${esc(s.name)}</span>
+          <input type="number" min="1" max="10" class="se-level" data-skill="${esc(s.id)}" value="${level}" ${sel ? '' : 'disabled'}>
         </label>`;
       }).join('')}</div>
       <footer><button class="se-cancel">Cancel·la</button><button class="se-save primary">Desa</button>
