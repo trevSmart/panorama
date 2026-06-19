@@ -83,6 +83,20 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
   /** All Omni-enabled agents (connected or not), populated on demand. */
   /** @type {import('./types.js').Agent[]} */
   let allAgents = [];
+  /** @type {import('./types.js').PanoramaCapabilities} */
+  let capabilities = { ...READ_ONLY_CAPABILITIES };
+
+  async function refreshCapabilities() {
+    try {
+      const session = await getSession();
+      const base = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
+      const res = await apiFetch(base, session.accessToken, '/capabilities', recoverSession);
+      capabilities = normalizeCapabilities(res);
+    } catch (err) {
+      console.warn('[Panorama] capabilities fetch failed, staying read-only', err);
+      capabilities = { ...READ_ONLY_CAPABILITIES };
+    }
+  }
 
   function notify() {
     listeners.forEach((fn) => fn());
@@ -186,6 +200,20 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
   }
 
   /**
+   * Persist skill changes for an agent.
+   * @param {string} agentId the agent's User Id
+   * @param {Array<{skillId: string, level?: number, remove?: boolean}>} changes
+   */
+  async function updateAgentSkills(agentId, changes) {
+    const session = await getSession();
+    const base = `${session.instanceUrl.replace(/\/$/, '')}/services/apexrest/panorama/v1`;
+    return apiFetch(
+      base, session.accessToken,
+      `/agents/${encodeURIComponent(agentId)}/skills`, recoverSession,
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ changes }) });
+  }
+
+  /**
    * Fetch work items currently traveling through queues to agents.
    * @returns {Promise<import('./types.js').WorkItem[]>}
    */
@@ -236,11 +264,12 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
 
   return {
     source: 'salesforce',
-    capabilities: READ_ONLY_CAPABILITIES,
+    get capabilities() { return capabilities; },
 
     async init() {
       await refresh();
       await refreshAllAgents().catch((err) => console.warn('[Panorama] all-agents prefetch failed', err));
+      await refreshCapabilities();
       startPolling();
     },
 
@@ -279,6 +308,7 @@ export function createSalesforceProvider({ runtimeConfig, getSession }) {
     getSkillAgents: (skillId) => refreshSkillAgents(skillId),
     getAgentSkills: (agentId) => refreshAgentSkills(agentId),
     getWork: () => refreshWork(),
+    updateAgentSkills,
     refresh,
     subscribe(fn) {
       listeners.add(fn);

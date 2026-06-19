@@ -254,6 +254,7 @@ export function createMockProvider() {
     getSkillAgents,
     getAgentSkills,
     getWork,
+    updateAgentSkills(_agentId, _changes) { return Promise.resolve({ ok: true }); },
     getLegacyBindings,
     startSimulation,
     /**
