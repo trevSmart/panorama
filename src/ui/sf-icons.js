@@ -57,6 +57,21 @@ export function sfIconColor(name) {
 }
 
 /**
+ * Color HSL determinístic derivat d'un string. Mateix string → mateix color.
+ * Només varia el to (hue); saturació i lluminositat són fixes dins la gamma de la
+ * paleta SF, així tots els colors tenen el mateix pes visual i contrast amb el blanc.
+ * @param {string} str
+ */
+export function colorFromString(str) {
+  let h = 0;
+  const s = String(str ?? '');
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) >>> 0; // hash enter no negatiu
+  }
+  return `hsl(${h % 360} 62% 58%)`;
+}
+
+/**
  * @param {string} ref SLDS icon ref, e.g. `standard:skill` or `custom:custom107`
  * @returns {{ sprite: string, symbol: string }}
  */
@@ -136,7 +151,12 @@ export function channelIconTileHtml(channelKey, opts = {}) {
   return sfIconTileHtml(channelIconName(channelKey), opts);
 }
 
-/** Skill entity tiles — accent matches tabs, drawers, and directory cards. */
-export function skillIconTileHtml(opts = {}) {
-  return sfIconTileHtml('skill', { bg: 'var(--accent)', ...opts });
+/**
+ * Skill entity tiles. El color es deriva del nom del skill (`name`) perquè cada
+ * skill tingui una icona de color propi i estable; sense `name` recau a l'accent.
+ * @param {{ name?: string, size?: number, bg?: string, className?: string }} [opts]
+ */
+export function skillIconTileHtml({ name, ...opts } = {}) {
+  const bg = opts.bg ?? (name != null ? colorFromString(name) : 'var(--accent)');
+  return sfIconTileHtml('skill', { ...opts, bg });
 }
