@@ -923,6 +923,16 @@ function renderAgentDetail(config) {
       ${timelineSection}
       ${workSection}`,
     afterMount(root, cfg) {
+      // Bind the skills editor first — the button exists whenever the drawer
+      // renders, independent of how skills load. (With Salesforce data, skills
+      // are embedded on the agent and the skill-list branch returns early, so
+      // binding after it would never run in live mode.)
+      const editBtn = root.querySelector('.js-edit-skills');
+      if (editBtn) {
+        editBtn.onclick = () => openSkillEditor(editBtn.dataset.agent, {
+          onSaved: () => openDrawer(editBtn.dataset.agent), // re-render drawer with fresh skills
+        });
+      }
       const list = root.querySelector('#agentSkillList');
       if (!list) return;
       const token = ++agentSkillsToken;
@@ -943,12 +953,6 @@ function renderAgentDetail(config) {
           console.warn('[Panorama] failed to load agent skills', err);
           list.innerHTML = `<div class="assigned-queue-empty" style="color:var(--alert)">No s'han pogut carregar els skills: ${esc(err.message)}</div>`;
         });
-      const editBtn = root.querySelector('.js-edit-skills');
-      if (editBtn) {
-        editBtn.onclick = () => openSkillEditor(editBtn.dataset.agent, {
-          onSaved: () => openDrawer(editBtn.dataset.agent), // re-render drawer with fresh skills
-        });
-      }
     },
   };
 }
