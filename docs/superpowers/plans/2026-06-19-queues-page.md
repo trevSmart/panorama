@@ -150,7 +150,7 @@ Comprovar:
 3. Els 3 filtres funcionen: **Totes** mostra totes; **Amb backlog** amaga les de backlog 0; **Buides** mostra només les de backlog 0. El chip actiu queda ressaltat (`.on`).
 4. Les cues surten ordenades de més a menys pressió.
 5. Clicar una cua → s'obre el drawer de detall de cua (`renderQueueDetail`).
-6. A la Home, clicar els pillars d'espera/backlog/SLA → ara naveguen a la vista Queues (abans no anaven enlloc).
+6. (Aclariment) Els pillars d'espera/backlog/SLA de la Home fan `Panorama.scrollTo('queues')` → scroll a `#sec-queues` dins la Home, NO obren la pestanya Queues. Aquest comportament no canvia amb aquesta feina.
 
 - [ ] **Step 5: Commit**
 
@@ -169,7 +169,7 @@ git commit -m "feat(ui): dedicated Queues directory page with activity filters"
   - Filtres d'activitat Totes / Amb backlog / Buides amb patró `[data-st]` → Step 1 (`QUEUE_FILTERS`, `queueMatchesFilter`, `queueFiltersHTML`, listener). ✓
   - `queueDirectoryGridHTML` filtra + ordena per pressió + reutilitza `queueCard` → Step 1. ✓
   - Clicks via `attachQueueCardClicks` → Step 1. ✓
-  - Arregla pillars `view: 'queues'` de la Home → conseqüència del registre, verificat a Step 4.6. ✓
+  - Pillars `view: 'queues'` de la Home: són àncores de scroll (`Panorama.scrollTo`), no navegació de pestanya — comportament inalterat per aquesta feina (premissa inicial corregida). ✓
   - Sense endpoint/CSS/targeta nous → respectat. ✓
 - **Placeholder scan:** cap TBD/TODO; tot el codi és complet i literal. ✓
 - **Type consistency:** `queueFilter` (string), `queuePressure(q)→number`, `queueMatchesFilter(q,filter)→bool`, `queueDirectoryGridHTML(list,filter)→string`, `renderQueuesDirectory(container)→Promise`. Noms coherents entre passos. `Queue` usa `{id,name,backlog,longest,avg,online}` consistent amb `queueCard`. ✓
