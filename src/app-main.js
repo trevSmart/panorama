@@ -7,7 +7,7 @@ import { buildBuildingSVG, computeFloorLayout, gridExtents, rgbc } from './build
 import { backgroundUrl } from './data/floor-backgrounds.js';
 import { registerFloorEditorPanel } from './floor-editor.js';
 import { buildAgentQueueSummaries } from './agent-queue-summary.js';
-import { channelIconTileHtml, channelIconName, sfIconColor, sfIconTileHtml, skillIconTileHtml } from './ui/sf-icons.js';
+import { channelIconTileHtml, channelIconName, colorFromString, sfIconColor, sfIconTileHtml, skillIconTileHtml } from './ui/sf-icons.js';
 import { formatDurationMin, formatDurationSec, formatWorkTimer } from './ui/duration.js';
 import {
   closeDetailDrawer,
@@ -32,7 +32,6 @@ import {
 
 /* ───────── Helpers ───────── */
 const initials = n => n.split(' ').map(w => w[0]).slice(0, 2).join('');
-const avGrad = i => [['#6a5be8', '#a98aff'], ['#15a06a', '#3ac88a'], ['#e05641', '#ff8f6b'], ['#d9981f', '#f2c14e'], ['#a98aff', '#e05641']][i % 5];
 const qById = id => QUEUES.find(q => q.id === id);
 const avatarImgOnError = "this.parentElement.classList.add('av--initials');this.remove()";
 function agentAvatarInnerHTML(a) {
@@ -42,24 +41,12 @@ function agentAvatarInnerHTML(a) {
   return `<span class="av-ini">${ini}</span><img src="${src}" alt="" loading="lazy" onerror="${avatarImgOnError}">`;
 }
 function agentRingFaceHTML(a) {
-  if (!isLiveDataMode()) {
-    const nameIdx = NAMES.findIndex(n => n[0] === a.name);
-    const [g1, g2] = avGrad(nameIdx >= 0 ? nameIdx : 0);
-    const src = agentPhotoSrc(a);
-    return `<div class="face" style="background:linear-gradient(135deg,${g1},${g2})"><span>${initials(a.name)}</span>${src ? `<img src="${src}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>`;
-  }
   const src = agentPhotoSrc(a);
-  return `<div class="face${src ? '' : ' av--initials'}">${agentAvatarInnerHTML(a)}</div>`;
+  return `<div class="face${src ? '' : ' av--initials'}" style="background:${colorFromString(a.name)}">${agentAvatarInnerHTML(a)}</div>`;
 }
 function agentAvatarHTML(a, className = 'tip-av') {
-  if (!isLiveDataMode()) {
-    const nameIdx = NAMES.findIndex(n => n[0] === a.name);
-    const [g1, g2] = avGrad(nameIdx >= 0 ? nameIdx : 0);
-    const src = agentPhotoSrc(a);
-    return `<div class="${className}" style="background:linear-gradient(135deg,${g1},${g2})"><span>${initials(a.name)}</span>${src ? `<img src="${src}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>`;
-  }
   const src = agentPhotoSrc(a);
-  return `<div class="${className}${src ? '' : ' av--initials'}">${agentAvatarInnerHTML(a)}</div>`;
+  return `<div class="${className}${src ? '' : ' av--initials'}" style="background:${colorFromString(a.name)}">${agentAvatarInnerHTML(a)}</div>`;
 }
 function agentMapTipHTML(a) {
   const st = STATUS[a.status];
@@ -520,7 +507,7 @@ function agentCard(a) {
 function queueCard(q) {
   const cap = q.online * 5 || 1, p = Math.min(1, q.backlog / cap);
   return `<div class="qcard" data-id="${q.id}" role="button" tabindex="0">
-    <div class="qtop"><span class="qn" style="color:${q.color}">${sfIconTileHtml('queue', { size: 22, bg: q.color })}${q.name}</span><span class="qa"><i></i><b class="mono">${q.online}</b> online</span></div>
+    <div class="qtop"><span class="qn" style="color:${colorFromString(q.name)}">${sfIconTileHtml('queue', { size: 22, bg: colorFromString(q.name) })}${q.name}</span><span class="qa"><i></i><b class="mono">${q.online}</b> online</span></div>
     <div class="pressure"><span style="width:${Math.max(6, p * 100)}%;background:${pColor(p)}"></span></div>
     <div class="qmetrics">
       <div class="m"><div class="v ${q.backlog > 8 ? 'warn' : ''}">${q.backlog}</div><div class="k">Backlog</div></div>
@@ -612,7 +599,7 @@ function skillCard(s) {
   const agents = Number(s.agents) || 0;
   const bColor = backlog === 0 ? 'var(--ok)' : backlog < 4 ? 'var(--watch)' : 'var(--alert)';
   return `<button type="button" class="ag-card sk-card" data-skill-id="${detailEsc(s.id)}">
-    <div class="ag-card-av">${skillIconTileHtml({ size: 22 })}</div>
+    <div class="ag-card-av">${skillIconTileHtml({ size: 22, name: s.name })}</div>
     <div class="ag-card-body">
       <div class="ag-card-name">${detailEsc(s.name)}</div>
       <div class="ag-card-role">${agents} agent${agents === 1 ? '' : 's'} qualificat${agents === 1 ? '' : 's'}</div>
@@ -715,14 +702,14 @@ function renderSkillDetail(config) {
     const title = config.name || 'Skill';
     if (skillCatalogLoaded) {
       return {
-        head: `<div class="dr-id">${skillIconTileHtml({ size: 58 })}
+        head: `<div class="dr-id">${skillIconTileHtml({ size: 58, name: title })}
             <div><div class="nm">${esc(title)}</div><div class="rl">Skill</div></div>
           </div>`,
         body: `<p style="color:var(--alert)">Skill not found.</p>`,
       };
     }
     return {
-      head: `<div class="dr-id">${skillIconTileHtml({ size: 58 })}
+      head: `<div class="dr-id">${skillIconTileHtml({ size: 58, name: title })}
           <div><div class="nm">${esc(title)}</div><div class="rl">Skill</div></div>
         </div>`,
       body: '<p style="color:var(--faint)">Loading skill…</p>',
@@ -739,7 +726,7 @@ function renderSkillDetail(config) {
   const typeLine = s.type ? esc(s.type) : 'Skill';
 
   return {
-    head: `<div class="dr-id">${skillIconTileHtml({ size: 58 })}
+    head: `<div class="dr-id">${skillIconTileHtml({ size: 58, name: s.name })}
         <div><div class="nm">${esc(s.name)}</div><div class="rl">${typeLine}</div>
           <div class="status-pill" style="color:${bColor};background:color-mix(in srgb,${bColor} 12%,transparent)"><i style="background:${bColor}"></i>${backlog} pendent${backlog === 1 ? '' : 's'}</div>
         </div>
@@ -791,7 +778,7 @@ function workItemRow(w) {
   const ag = w.agentId ? findAgent(w.agentId) : null;
   const assignee = ag ? ag.name : '<span style="color:var(--faint)">A la cua</span>';
   const qName = q ? q.name : '—';
-  const qColor = q ? (q.color || 'var(--accent)') : 'var(--faint)';
+  const qColor = q ? colorFromString(q.name) : 'var(--faint)';
   return `<div class="wi">
     <div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div>
     <div class="info"><div class="t">${detailEsc(w.subject)}</div><div class="m">${CH_LBL[w.channelKey] || 'Canal'} · ${assignee}</div></div>
@@ -816,7 +803,7 @@ function workListHTML(list) {
   for (const [key, items] of groups) {
     const q = qById(key);
     const qName = q ? q.name : 'Sense cua';
-    const qColor = q ? (q.color || 'var(--accent)') : 'var(--faint)';
+    const qColor = q ? colorFromString(q.name) : 'var(--faint)';
     html += `<section class="wk-group">
       <h4 style="color:${qColor}">${detailEsc(qName)} <span class="cnt">${items.length}</span></h4>
       <div class="worklist">${items.map(workItemRow).join('')}</div>
@@ -882,7 +869,7 @@ function renderAgentDetail(config) {
   const assignedQueuesHTML = queueSummaries.length
     ? `<div class="assigned-queue-list">${queueSummaries.map((q) => `<div class="assigned-queue-row">
       <div class="assigned-queue-head">
-        <div class="assigned-queue-name">${sfIconTileHtml('queue', { size: 20, bg: q.color })}<span>${esc(q.name)}</span></div>
+        <div class="assigned-queue-name">${sfIconTileHtml('queue', { size: 20, bg: colorFromString(q.name) })}<span>${esc(q.name)}</span></div>
         <span class="assigned-queue-count">${q.workItems.length} active</span>
       </div>
       <div class="assigned-queue-work">${q.workItems.length ? q.workItems.map(assignedQueueWorkItemHTML).join('') : '<div class="assigned-queue-empty">No active work in this queue</div>'}</div>
@@ -906,12 +893,12 @@ function renderAgentDetail(config) {
     ? (liveItems.length > 0
       ? `<section><h4>Active work (${liveItems.length})</h4><div class="worklist">${liveItems.map(w => {
         const chLabel = CH_LBL[w.channelKey] || w.channel || 'Channel';
-        const queuePill = w.queue ? `<span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: 'var(--accent)' })}<span style="color:var(--accent)">${esc(w.queue)}</span></span>` : '';
+        const queuePill = w.queue ? `<span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: colorFromString(w.queue) })}<span style="color:${colorFromString(w.queue)}">${esc(w.queue)}</span></span>` : '';
         const subj = w.subject ? `<div class="m">${esc(w.subject)}</div>` : `<div class="m">${esc(chLabel)}</div>`;
         return `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${esc(w.label)}</div>${subj}</div>${queuePill}<span class="age mono">${formatDurationMin(w.ageMin)}</span></div>`;
       }).join('')}</div></section>`
       : '')
-    : `<section><h4>Feina activa (${items.length})</h4><div class="worklist">${items.map(w => `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${w.t}</div><div class="m">${CH_LBL[w.channelKey] || 'Canal'}</div></div><span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: qById(w.q).color })}<span style="color:${qById(w.q).color}">${qById(w.q).name}</span></span><span class="age mono">${formatDurationMin(w.age)}</span></div>`).join('')}</div></section>`;
+    : `<section><h4>Feina activa (${items.length})</h4><div class="worklist">${items.map(w => `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${w.t}</div><div class="m">${CH_LBL[w.channelKey] || 'Canal'}</div></div><span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: colorFromString(qById(w.q).name) })}<span style="color:${colorFromString(qById(w.q).name)}">${qById(w.q).name}</span></span><span class="age mono">${formatDurationMin(w.age)}</span></div>`).join('')}</div></section>`;
 
   return {
     head: `<div class="dr-id"><div class="ring ${a.status === 'busy' ? 'breathe' : ''}" style="--st:${st.c};width:58px;height:58px">${ringSVG(a.used, a.max, st.c, 58)}${agentRingFaceHTML(a)}</div>
@@ -972,7 +959,7 @@ function agentSkillRowsHTML(list) {
       : `<span class="skill-level-pill">Nivell ${esc(String(level))}</span>`;
     return `<div class="skill-row">
       <div class="skill-row-head">
-        <div class="skill-row-name">${skillIconTileHtml({ size: 20 })}<span>${esc(s.name)}</span>${s.type ? `<span class="skill-type-tag">${esc(s.type)}</span>` : ''}</div>
+        <div class="skill-row-name">${skillIconTileHtml({ size: 20, name: s.name })}<span>${esc(s.name)}</span>${s.type ? `<span class="skill-type-tag">${esc(s.type)}</span>` : ''}</div>
         ${levelPill}
       </div>
       <dl class="skill-meta">
@@ -1121,9 +1108,9 @@ function renderQueueDetail(config) {
     : '<div class="assigned-queue-empty">No active work in this queue</div>';
 
   return {
-    head: `<div class="dr-id">${sfIconTileHtml('queue', { size: 58, bg: q.color })}
+    head: `<div class="dr-id">${sfIconTileHtml('queue', { size: 58, bg: colorFromString(q.name) })}
         <div><div class="nm">${esc(q.name)}</div><div class="rl">Queue</div>
-          <div class="status-pill" style="color:${q.color};background:color-mix(in srgb,${q.color} 12%,transparent)"><i style="background:${q.color}"></i>${q.online} agents online</div>
+          <div class="status-pill" style="color:${colorFromString(q.name)};background:color-mix(in srgb,${colorFromString(q.name)} 12%,transparent)"><i style="background:${colorFromString(q.name)}"></i>${q.online} agents online</div>
         </div>
       </div>`,
     body: `<section><h4>Queue health</h4>
@@ -1185,13 +1172,13 @@ registerDetailKind('queue', {
   resolveLabel: (config) => queueState.find((q) => q.id === config.id)?.name || 'Queue',
   resolveTabIcon: (config) => {
     const q = queueState.find((x) => x.id === config.id);
-    return sfIconTileHtml('queue', { size: 18, bg: q?.color, className: 'sf-icon-tile ws-tab-icon-tile' });
+    return sfIconTileHtml('queue', { size: 18, bg: q?.name ? colorFromString(q.name) : undefined, className: 'sf-icon-tile ws-tab-icon-tile' });
   },
   render: renderQueueDetail,
 });
 registerDetailKind('skill', {
   resolveLabel: (config) => findSkill(config.id)?.name || config.name || null,
-  resolveTabIcon: () => skillIconTileHtml({ size: 18, className: 'sf-icon-tile ws-tab-icon-tile' }),
+  resolveTabIcon: (config) => skillIconTileHtml({ size: 18, name: findSkill(config.id)?.name || config.name, className: 'sf-icon-tile ws-tab-icon-tile' }),
   render: renderSkillDetail,
 });
 initDetailDrawerChrome();
@@ -1674,14 +1661,7 @@ const GlobalSearch = {
 
   agentItem(a, idx) {
     const st = STATUS[a.status];
-    const av = isLiveDataMode()
-      ? agentAvatarHTML(a, 'si-av')
-      : (() => {
-        const nameIdx = NAMES.findIndex(n => n[0] === a.name);
-        const [g1, g2] = avGrad(nameIdx >= 0 ? nameIdx : 0);
-        const src = agentPhotoSrc(a);
-        return `<span class="si-av" style="background:linear-gradient(135deg,${g1},${g2})"><span>${initials(a.name)}</span>${src ? `<img src="${src}" alt="" loading="lazy" onerror="this.remove()">` : ''}</span>`;
-      })();
+    const av = agentAvatarHTML(a, 'si-av');
     return `<button type="button" class="qsearch-item${idx === this.activeIdx ? ' on' : ''}" role="option" data-kind="agent" data-id="${a.id}">
           ${av}
           <span class="si-main"><div class="si-title">${this.esc(a.name)}${a.flag ? ' ⚑' : ''}</div><div class="si-meta">${this.esc(a.role)}</div></span>
@@ -1691,7 +1671,7 @@ const GlobalSearch = {
 
   queueItem(q, idx) {
     return `<button type="button" class="qsearch-item${idx === this.activeIdx ? ' on' : ''}" role="option" data-kind="queue" data-id="${q.id}">
-          ${sfIconTileHtml('queue', { size: 30, bg: q.color })}
+          ${sfIconTileHtml('queue', { size: 30, bg: colorFromString(q.name) })}
           <span class="si-main"><div class="si-title">${this.esc(q.name)}</div><div class="si-meta">${q.backlog} backlog · ${q.online} online</div></span>
           <span class="si-kbd">Queue</span>
         </button>`;
@@ -1699,7 +1679,7 @@ const GlobalSearch = {
 
   skillItem(s, idx) {
     return `<button type="button" class="qsearch-item${idx === this.activeIdx ? ' on' : ''}" role="option" data-kind="skill" data-id="${s.id}">
-          ${skillIconTileHtml({ size: 30 })}
+          ${skillIconTileHtml({ size: 30, name: s.name })}
           <span class="si-main"><div class="si-title">${this.esc(s.name)}</div><div class="si-meta">${s.agents} qualified agents</div></span>
           <span class="si-kbd">Skill</span>
         </button>`;
