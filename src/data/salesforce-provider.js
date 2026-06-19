@@ -8,6 +8,25 @@ import { devConsole } from '../dev/dev-console.js';
 import { getRefreshConfig } from '../settings/preferences.js';
 
 /**
+ * Coerce a raw /capabilities payload into a full PanoramaCapabilities object.
+ * Any missing or non-boolean key falls back to its READ_ONLY value, so a
+ * partial or malformed response can never enable an action button.
+ * @param {any} raw
+ * @returns {import('./types.js').PanoramaCapabilities}
+ */
+export function normalizeCapabilities(raw) {
+  const out = { ...READ_ONLY_CAPABILITIES };
+  if (raw && typeof raw === 'object') {
+    for (const key of Object.keys(READ_ONLY_CAPABILITIES)) {
+      if (typeof raw[key] === 'boolean') {
+        out[key] = raw[key];
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * @param {string} apiBaseUrl
  * @param {string} accessToken
  * @param {string} path
