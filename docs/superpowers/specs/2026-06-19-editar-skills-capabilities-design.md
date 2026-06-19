@@ -150,9 +150,16 @@ Permet afegir, treure i editar el nivell de cada skill. En desar, calcula el dif
 
 ## Tests
 
-- **Apex:** `ServiceResourceSkill` és insertable en context de test (a diferència
-  d'`AgentWork`), així que `updateAgentSkills` i `getCapabilities` es poden cobrir amb DML
-  real. Cobrir: afegir, treure, canviar nivell, i el cas sense permís (CRUD-check).
+- **Apex:** El catàleg `Skill` **no és insertable** en test (verificat: create=false), i
+  sense un `Skill` real no es pot inserir un `ServiceResourceSkill` vàlid lligat. Per tant
+  cal seguir el patró ja establert a `PanoramaAgentServiceTest`: separar la **lògica de
+  diff** en un mètode pur i estàtic (`@TestVisible`) que rep llistes en memòria i retorna
+  les operacions a fer (inserts/deletes/updates), cobrint-lo amb registres construïts via
+  `JSON.deserialize` (com `buildResourceSkill`). El mètode prim que executa el DML real
+  queda amb cobertura mínima. Cobrir el càlcul de diff: afegir, treure, canviar nivell, i
+  el CRUD-check (sense permís → error).
+- **getCapabilities:** cobrible directament — `Schema...isCreateable()` etc. no requereix
+  DML; assertar la forma de l'objecte retornat.
 - **Provider/UI:** test que el fallback a read-only s'activa quan `/capabilities` falla, i
   que el botó respecta la flag.
 
