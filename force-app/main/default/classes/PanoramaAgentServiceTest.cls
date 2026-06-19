@@ -523,6 +523,43 @@ private class PanoramaAgentServiceTest {
     }
 
     @IsTest
+    static void diffSkillsAddsRemovesAndUpdates() {
+        Id resourceId = '0Hn000000000001AAA';
+        Id skillKeep = '0C5000000000001AAA';
+        Id skillDrop = '0C5000000000002AAA';
+        Id skillAdd  = '0C5000000000003AAA';
+
+        ServiceResourceSkill keep = buildResourceSkill(skillKeep, resourceId); // level change
+        ServiceResourceSkill drop = buildResourceSkill(skillDrop, resourceId); // removed
+        // give the existing rows ids + level via JSON so update/delete can target them
+        keep = (ServiceResourceSkill) JSON.deserialize(
+            '{"attributes":{"type":"ServiceResourceSkill"},"Id":"0Hq000000000001AAA","SkillId":"' + skillKeep + '","ServiceResourceId":"' + resourceId + '","SkillLevel":1}',
+            ServiceResourceSkill.class);
+        drop = (ServiceResourceSkill) JSON.deserialize(
+            '{"attributes":{"type":"ServiceResourceSkill"},"Id":"0Hq000000000002AAA","SkillId":"' + skillDrop + '","ServiceResourceId":"' + resourceId + '","SkillLevel":3}',
+            ServiceResourceSkill.class);
+
+        List<ServiceResourceSkill> current = new List<ServiceResourceSkill>{ keep, drop };
+        List<PanoramaSkillService.SkillChange> desired = new List<PanoramaSkillService.SkillChange>();
+        PanoramaSkillService.SkillChange c1 = new PanoramaSkillService.SkillChange();
+        c1.skillId = skillKeep; c1.level = 5; c1.remove = false;        // update level 1 -> 5
+        PanoramaSkillService.SkillChange c2 = new PanoramaSkillService.SkillChange();
+        c2.skillId = skillDrop; c2.remove = true;                       // delete
+        PanoramaSkillService.SkillChange c3 = new PanoramaSkillService.SkillChange();
+        c3.skillId = skillAdd; c3.level = 2; c3.remove = false;         // insert
+        desired.add(c1); desired.add(c2); desired.add(c3);
+
+        PanoramaSkillService.SkillDiff diff = PanoramaSkillService.diffSkills(current, desired, resourceId);
+
+        System.assertEquals(1, diff.toInsert.size(), 'one new skill');
+        System.assertEquals(skillAdd, diff.toInsert[0].SkillId);
+        System.assertEquals(1, diff.toUpdate.size(), 'one level change');
+        System.assertEquals(5, diff.toUpdate[0].SkillLevel);
+        System.assertEquals(1, diff.toDelete.size(), 'one removal');
+        System.assertEquals('0Hq000000000002AAA', String.valueOf(diff.toDelete[0].Id));
+    }
+
+    @IsTest
     static void countBacklogTalliesReadyRequirementsBySkill() {
         Id skillA = '0C5000000000001AAA';
         Id skillB = '0C5000000000002AAA';
