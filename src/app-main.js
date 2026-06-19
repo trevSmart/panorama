@@ -110,7 +110,7 @@ function health() {
   const allPillars = [
     {
       id: 'wait', view: 'queues', lbl: 'Espera', val: formatDurationSec(longest, { short: true }), raw: longest, state: lvl(longest, 150, 240),
-      msg: { ok: 'dins de marge', watch: 'pujant', alert: 'per sobre del llindar' }
+      msg: { ok: 'dins de marge', watch: 'pujant', alert: 'sobre el llindar' }
     },
     {
       id: 'backlog', view: 'queues', lbl: 'Backlog', val: backlog, raw: backlog, state: lvl(backlog, 18, 30),
@@ -593,6 +593,64 @@ async function renderAgentsDirectory(container) {
 
 /* ───────── Queues view ───────── */
 function pColor(p) { return p < .5 ? 'var(--ok)' : p < .8 ? 'var(--watch)' : 'var(--alert)'; }
+let queueFilter = 'all';
+const QUEUE_FILTERS = [
+  { id: 'all', lbl: 'Totes' },
+  { id: 'backlog', lbl: 'Amb backlog' },
+  { id: 'empty', lbl: 'Buides' },
+];
+function queueMatchesFilter(q, filter) {
+  if (filter === 'backlog') return (q.backlog || 0) > 0;
+  if (filter === 'empty') return (q.backlog || 0) === 0;
+  return true;
+}
+function queuePressure(q) {
+  const cap = q.online * 5 || 1;
+  return Math.min(1, (q.backlog || 0) / cap);
+}
+function queueDirectoryGridHTML(list, filter) {
+  const filtered = (list || []).filter((q) => queueMatchesFilter(q, filter));
+  if (!filtered.length) return '<p style="color:var(--faint)">Cap cua coincideix.</p>';
+  const sorted = filtered.slice().sort((a, b) => queuePressure(b) - queuePressure(a) || a.name.localeCompare(b.name));
+  return sorted.map(queueCard).join('');
+}
+function queueFiltersHTML() {
+  return QUEUE_FILTERS.map((f) =>
+    `<button type="button" class="chip${f.id === queueFilter ? ' on' : ''}" data-st="${f.id}">${f.lbl}</button>`
+  ).join('');
+}
+let queueDirectoryToken = 0;
+async function renderQueuesDirectory(container) {
+  const token = ++queueDirectoryToken;
+  container.innerHTML = `<div class="view">
+    <div class="view-head"><h2>Queues</h2><p>Totes les cues d'Omni-Channel i la seva pressió actual.</p></div>
+    <div class="chips" id="queuesFilters">${queueFiltersHTML()}</div>
+    <div class="qgrid" id="queuesDirGrid"><p style="color:var(--faint)">Carregant cues…</p></div>
+  </div>`;
+  const grid = container.querySelector('#queuesDirGrid');
+  const filters = container.querySelector('#queuesFilters');
+  try {
+    const provider = globalThis.PanoramaProvider;
+    const list = provider?.getQueues
+      ? await provider.getQueues()
+      : (globalThis.queueState || []);
+    if (token !== queueDirectoryToken) return; // un render més nou l'ha substituït
+    grid.innerHTML = queueDirectoryGridHTML(list || [], queueFilter);
+    attachQueueCardClicks(grid);
+    filters.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-st]');
+      if (!btn) return;
+      queueFilter = btn.dataset.st;
+      filters.querySelectorAll('[data-st]').forEach((b) => b.classList.toggle('on', b.dataset.st === queueFilter));
+      grid.innerHTML = queueDirectoryGridHTML(list || [], queueFilter);
+      attachQueueCardClicks(grid);
+    });
+  } catch (err) {
+    if (token !== queueDirectoryToken) return;
+    console.warn('[Panorama] failed to load queues directory', err);
+    grid.innerHTML = `<p style="color:var(--alert)">No s'han pogut carregar les cues: ${err.message}</p>`;
+  }
+}
 
 /* ───────── Skills directory view ───────── */
 function skillCard(s) {
@@ -1404,6 +1462,13 @@ PanoramaWorkspace.registerPanelType({
   defaultLabel: 'Agents',
   mount(container) { renderAgentsDirectory(container); },
   activate(container) { renderAgentsDirectory(container); },
+});
+
+PanoramaWorkspace.registerPanelType({
+  viewType: 'queues',
+  defaultLabel: 'Queues',
+  mount(container) { renderQueuesDirectory(container); },
+  activate(container) { renderQueuesDirectory(container); },
 });
 
 PanoramaWorkspace.registerPanelType({
