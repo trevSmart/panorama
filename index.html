@@ -2047,6 +2047,51 @@
       margin-top: 2px
     }
 
+    /* Queues page: full cards mirroring the queue drawer (health → waiting →
+       active work → agents). Wider columns than the compact Home queue grid. */
+    .qdir-grid {
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      align-items: start
+    }
+
+    .qdir-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 18px;
+      box-shadow: var(--shadow)
+    }
+
+    .qdir-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: .2s var(--ease)
+    }
+
+    .qdir-head:hover {
+      opacity: .85
+    }
+
+    .qdir-card .pressure {
+      margin-bottom: 14px
+    }
+
+    .qdir-card > section {
+      margin-top: 16px
+    }
+
+    .qdir-card > section > h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--faint);
+      margin: 0 0 8px
+    }
+
     .placeholder {
       padding: 80px 24px;
       text-align: center;
