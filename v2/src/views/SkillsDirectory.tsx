@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useVersion } from '../store/hooks';
-import { ensureSkillCatalog, skillGroups, skillGroupHTML } from '../render/v1html';
+import { ensureSkillCatalog, skillGroups, skillCardHTML } from '../render/v1html';
 import { HtmlReconciledGrid } from '../components/HtmlReconciledGrid';
 import type { DetailTarget } from '../detail/DetailDrawer';
 import type { Skill } from '../core/types';
@@ -31,14 +31,18 @@ export function SkillsDirectory({ openDetail }: { openDetail: (t: DetailTarget) 
       {error && <p style={{ color: 'var(--alert)' }}>No s'han pogut carregar les skills: {error}</p>}
       {!error && !skills && <p style={{ color: 'var(--faint)' }}>Carregant skills…</p>}
       {!error && skills && (
-        <HtmlReconciledGrid
-          id="skillsDirGroups"
-          items={groups}
-          keyOf={(g) => g.key}
-          renderItem={skillGroupHTML}
-          emptyHTML='<p style="color:var(--faint)">No skills found.</p>'
-          onClick={onClick}
-        />
+        <div id="skillsDirGroups" onClick={onClick}>
+          {groups.length === 0
+            ? <p style={{ color: 'var(--faint)' }}>No skills found.</p>
+            : groups.map((g) => (
+              <section className="sk-group" key={g.key}>
+                <h4>{g.typeName} <span className="cnt">{g.skills.length}</span></h4>
+                {/* Section is React; cards inside reconcile by markup so only the
+                    changed skill repaints, not the whole type group. */}
+                <HtmlReconciledGrid className="grid ag-grid" items={g.skills} keyOf={(s) => s.id} renderItem={skillCardHTML} />
+              </section>
+            ))}
+        </div>
       )}
     </div>
   );

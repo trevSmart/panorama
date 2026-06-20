@@ -368,7 +368,7 @@ export function waitingWorkByQueue(allWork: WorkItem[]): Record<string, WorkItem
   return map;
 }
 
-function skillCard(s: Skill): string {
+export function skillCardHTML(s: Skill): string {
   const backlog = Number(s.backlog) || 0;
   const agents = Number(s.agents) || 0;
   const bColor = backlog === 0 ? 'var(--ok)' : backlog < 4 ? 'var(--watch)' : 'var(--alert)';
@@ -400,7 +400,7 @@ export function skillGroups(list: Skill[]): SkillGroup[] {
 
 /** Markup for one skill-type group. Carries data-id for keyed reconcile. */
 export function skillGroupHTML(g: SkillGroup): string {
-  return `<section class="sk-group" data-id="${esc(g.key)}"><h4>${esc(g.typeName)} <span class="cnt">${g.skills.length}</span></h4><div class="grid ag-grid">${g.skills.map(skillCard).join('')}</div></section>`;
+  return `<section class="sk-group" data-id="${esc(g.key)}"><h4>${esc(g.typeName)} <span class="cnt">${g.skills.length}</span></h4><div class="grid ag-grid">${g.skills.map(skillCardHTML).join('')}</div></section>`;
 }
 
 export function skillsGroupedHTML(list: Skill[]): string {
@@ -408,7 +408,7 @@ export function skillsGroupedHTML(list: Skill[]): string {
   return skillGroups(list).map(skillGroupHTML).join('');
 }
 
-function workItemRow(w: WorkItem): string {
+export function workItemRowHTML(w: WorkItem): string {
   const q = w.queueId ? qById(w.queueId) : undefined;
   const ag = w.agentId ? findAgent(w.agentId) : null;
   const assignee = ag ? ag.name : '<span style="color:var(--faint)">A la cua</span>';
@@ -421,7 +421,7 @@ function workItemRow(w: WorkItem): string {
     <span class="age mono">${formatWorkTimer(Number(w.ageSec) || 0)}</span>
   </div>`;
 }
-export interface WorkGroup { key: string; items: WorkItem[]; }
+export interface WorkGroup { key: string; items: WorkItem[]; name: string; color: string; }
 
 /** Work page grouped by queue, queued-before-active, oldest first. */
 export function workGroups(list: WorkItem[]): WorkGroup[] {
@@ -435,15 +435,15 @@ export function workGroups(list: WorkItem[]): WorkGroup[] {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(w);
   });
-  return [...groups.entries()].map(([key, items]) => ({ key, items }));
+  return [...groups.entries()].map(([key, items]) => {
+    const q = qById(key);
+    return { key, items, name: q ? q.name : 'Sense cua', color: q ? colorFromString(q.name) : 'var(--faint)' };
+  });
 }
 
 /** Markup for one work queue-group. Carries data-id for keyed reconcile. */
 export function workGroupHTML(g: WorkGroup): string {
-  const q = qById(g.key);
-  const qName = q ? q.name : 'Sense cua';
-  const qColor = q ? colorFromString(q.name) : 'var(--faint)';
-  return `<section class="wk-group" data-id="${esc(g.key)}"><h4 style="color:${qColor}">${esc(qName)} <span class="cnt">${g.items.length}</span></h4><div class="worklist">${g.items.map(workItemRow).join('')}</div></section>`;
+  return `<section class="wk-group" data-id="${esc(g.key)}"><h4 style="color:${g.color}">${esc(g.name)} <span class="cnt">${g.items.length}</span></h4><div class="worklist">${g.items.map(workItemRowHTML).join('')}</div></section>`;
 }
 
 export function workListHTML(list: WorkItem[]): string {
