@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQueues, useStable, useVersion } from '../store/hooks';
-import { getProvider } from '../store/panoramaStore';
-import { queueDirectoryGridHTML, waitingWorkByQueue } from '../render/v1html';
+import { useQueues, useVersion } from '../store/hooks';
+import { getWorkShared } from '../store/panoramaStore';
+import { queueDirectorySorted, queueDirectoryCardHTML, waitingWorkByQueue } from '../render/v1html';
+import { HtmlReconciledGrid } from '../components/HtmlReconciledGrid';
 import type { DetailTarget } from '../detail/DetailDrawer';
 import type { WorkItem } from '../core/types';
 
@@ -16,19 +17,17 @@ export function QueuesDirectory({ openDetail }: { openDetail: (t: DetailTarget) 
   const version = useVersion();
   const queues = useQueues();
   const [filter, setFilter] = useState<QueueFilter>('all');
-  const [waitingState, setWaiting] = useState<Record<string, WorkItem[]>>({});
+  const [waiting, setWaiting] = useState<Record<string, WorkItem[]>>({});
 
   useEffect(() => {
     let cancelled = false;
-    Promise.resolve(getProvider().getWork())
+    getWorkShared()
       .then((w) => { if (!cancelled) setWaiting(waitingWorkByQueue(w)); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [version]);
 
-  // Stabilise the per-poll rebuild so an unchanged response doesn't rewrite the grid.
-  const waiting = useStable(waitingState);
-  const html = useMemo(() => queueDirectoryGridHTML(queues, filter, waiting), [queues, filter, waiting]);
+  const items = useMemo(() => queueDirectorySorted(queues, filter), [queues, filter]);
 
   const onClick = (e: React.MouseEvent) => {
     const agentRow = (e.target as HTMLElement).closest('[data-agent-id]');
@@ -54,7 +53,15 @@ export function QueuesDirectory({ openDetail }: { openDetail: (t: DetailTarget) 
           <button key={f.id} type="button" className={`chip ${filter === f.id ? 'on' : ''}`} onClick={() => setFilter(f.id)}>{f.lbl}</button>
         ))}
       </div>
-      <div className="qgrid qdir-grid" onClick={onClick} onKeyDown={onKeyDown} dangerouslySetInnerHTML={{ __html: html }} />
+      <HtmlReconciledGrid
+        className="qgrid qdir-grid"
+        items={items}
+        keyOf={(q) => q.id}
+        renderItem={(q) => queueDirectoryCardHTML(q, waiting)}
+        emptyHTML='<p style="color:var(--faint)">Cap cua coincideix.</p>'
+        onClick={onClick}
+        onKeyDown={onKeyDown}
+      />
     </div>
   );
 }

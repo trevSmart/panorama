@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useStable, useVersion } from '../store/hooks';
-import { ensureSkillCatalog, skillsGroupedHTML } from '../render/v1html';
+import { useVersion } from '../store/hooks';
+import { ensureSkillCatalog, skillGroups, skillGroupHTML } from '../render/v1html';
+import { HtmlReconciledGrid } from '../components/HtmlReconciledGrid';
 import type { DetailTarget } from '../detail/DetailDrawer';
 import type { Skill } from '../core/types';
 
@@ -17,8 +18,7 @@ export function SkillsDirectory({ openDetail }: { openDetail: (t: DetailTarget) 
     return () => { cancelled = true; };
   }, [version]);
 
-  const stableSkills = useStable(skills);
-  const html = useMemo(() => (stableSkills ? skillsGroupedHTML(stableSkills) : ''), [stableSkills]);
+  const groups = useMemo(() => (skills ? skillGroups(skills) : []), [skills]);
 
   const onClick = (e: React.MouseEvent) => {
     const card = (e.target as HTMLElement).closest('.sk-card[data-skill-id]');
@@ -30,7 +30,16 @@ export function SkillsDirectory({ openDetail }: { openDetail: (t: DetailTarget) 
       <div className="view-head"><h2>Skills</h2><p>Backlog per skill routing, agrupat per tipus: quins skills tenen profunditat de cua i quants agents qualificats hi ha.</p></div>
       {error && <p style={{ color: 'var(--alert)' }}>No s'han pogut carregar les skills: {error}</p>}
       {!error && !skills && <p style={{ color: 'var(--faint)' }}>Carregant skills…</p>}
-      {!error && skills && <div id="skillsDirGroups" onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />}
+      {!error && skills && (
+        <HtmlReconciledGrid
+          id="skillsDirGroups"
+          items={groups}
+          keyOf={(g) => g.key}
+          renderItem={skillGroupHTML}
+          emptyHTML='<p style="color:var(--faint)">No skills found.</p>'
+          onClick={onClick}
+        />
+      )}
     </div>
   );
 }

@@ -92,8 +92,9 @@ interface Props {
 }
 
 export function OperationsView({ openDetail }: Props) {
-  const onOpenAgent = (id: string) => openDetail({ kind: 'agent', id });
-  const onOpenQueue = (id: string) => openDetail({ kind: 'queue', id });
+  // Stable handler identity so memoised AgentCard/QueueCard skip unchanged rows.
+  const onOpenAgent = useCallback((id: string) => openDetail({ kind: 'agent', id }), [openDetail]);
+  const onOpenQueue = useCallback((id: string) => openDetail({ kind: 'queue', id }), [openDetail]);
   const agents = useConnectedAgents();
   const queues = useQueues();
   const [filter, setFilter] = useState<StatusFilter>('all');

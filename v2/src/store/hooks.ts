@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { panoramaStore, getProvider, getBindings } from './panoramaStore';
+import { panoramaStore, getProvider, getBindings, getWorkShared } from './panoramaStore';
 import type { Agent, Queue, Skill, AgentSkill, WorkItem } from '../core/types';
 
 /** Re-renders the caller whenever the underlying data changes (poll/sim tick). */
@@ -26,6 +26,36 @@ export function useStable<T>(value: T): T {
   return ref.current.value;
 }
 
+/**
+ * Per-element identity stabilisation. Like {@link useStable} but reuses each
+ * item's *previous* reference when that item's content is unchanged, keying by
+ * `keyOf`. A poll that touches one row therefore yields an array where only that
+ * row is a new reference — memoised row/card components skip every other row and
+ * just the changed one repaints, instead of the whole list. The array identity
+ * itself is also reused when nothing changed at all.
+ */
+export function useStableList<T>(list: T[], keyOf: (item: T) => string): T[] {
+  const prev = useRef<Map<string, { key: string; value: T }>>(new Map());
+  const arrRef = useRef<T[]>(list);
+  const nextMap = new Map<string, { key: string; value: T }>();
+  let changed = list.length !== prev.current.size;
+  const result = list.map((item) => {
+    const id = keyOf(item);
+    const key = JSON.stringify(item) ?? '';
+    const cached = prev.current.get(id);
+    if (cached && cached.key === key) {
+      nextMap.set(id, cached);
+      return cached.value;
+    }
+    changed = true;
+    nextMap.set(id, { key, value: item });
+    return item;
+  });
+  prev.current = nextMap;
+  if (changed) arrRef.current = result;
+  return arrRef.current;
+}
+
 /** Connected roster (synchronous in both providers), recomputed each version. */
 export function useConnectedAgents(): Agent[] {
   const version = useVersion();
@@ -34,14 +64,14 @@ export function useConnectedAgents(): Agent[] {
     return Array.isArray(res) ? res : [];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
-  return useStable(list);
+  return useStableList(list, (a) => a.id);
 }
 
 export function useQueues(): Queue[] {
   const version = useVersion();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const list = useMemo(() => getProvider().getQueues(), [version]);
-  return useStable(list);
+  return useStableList(list, (q) => q.id);
 }
 
 export function useBindings() {
@@ -105,7 +135,7 @@ export function useSkills(): AsyncState<Skill[]> {
 }
 
 export function useWork(): AsyncState<WorkItem[]> {
-  return useAsyncData(() => getProvider().getWork(), []);
+  return useAsyncData(() => getWorkShared(), []);
 }
 
 export function useAgentSkills(agentId: string | null): AsyncState<AgentSkill[]> {

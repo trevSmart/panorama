@@ -10,7 +10,7 @@ import { channelIconTileHtml, sfIconTileHtml, skillIconTileHtml, colorFromString
 import { openSkillEditor } from '@core/ui/skill-edit.js';
 import { setHTML } from '@core/ui/reconcile-grid.js';
 import { ringSVG, agentRingFaceHTML, agentAvatarHTML } from './cardHtml';
-import { getProvider } from '../store/panoramaStore';
+import { getProvider, getWorkShared } from '../store/panoramaStore';
 import type { Agent, Queue, Skill, WorkItem } from '../core/types';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -237,7 +237,7 @@ export function renderQueueDetail(config: { id: string }): DetailRender | null {
       const listEl = root.querySelector('#queueWaitingList');
       const countEl = root.querySelector('#queueWaitingCount');
       if (!listEl) return;
-      Promise.resolve(getProvider().getWork())
+      getWorkShared()
         .then((all) => {
           const waiting = queuedWorkForQueue(all, config.id);
           // setHTML: a re-poll that returns identical waiting items leaves the
@@ -317,24 +317,26 @@ export function renderSkillDetail(config: { id: string; name?: string }): Detail
 }
 
 /* ───────── Directory grids ───────── */
-export function queueDirectoryGridHTML(list: Queue[], filter: string, waitingByQueue: Record<string, WorkItem[]>): string {
-  const live = isLiveDataMode();
+/** Queues page: the filtered + pressure-sorted queue list (one card each). */
+export function queueDirectorySorted(list: Queue[], filter: string): Queue[] {
   const match = (q: Queue) => {
     if (filter === 'backlog') return (q.backlog || 0) > 0;
     if (filter === 'empty') return (q.backlog || 0) === 0;
     return true;
   };
   const pressureOf = (q: Queue) => Math.min(1, (q.backlog || 0) / ((q.online || 0) * 5 || 1));
-  const filtered = (list || []).filter(match);
-  if (!filtered.length) return '<p style="color:var(--faint)">Cap cua coincideix.</p>';
-  const sorted = filtered.slice().sort((a, b) => pressureOf(b) - pressureOf(a) || a.name.localeCompare(b.name));
-  return sorted.map((q) => {
-    const cap = (q.online || 0) * 5 || 1;
-    const pressure = Math.min(1, (q.backlog || 0) / cap);
-    const members = sortedQueueMembers(q.id);
-    const workItems = activeWorkInQueue(q, live);
-    const waiting = waitingByQueue[q.id] || [];
-    return `<div class="qdir-card" data-id="${esc(q.id)}">
+  return (list || []).filter(match).slice().sort((a, b) => pressureOf(b) - pressureOf(a) || a.name.localeCompare(b.name));
+}
+
+/** Markup for a single Queues-page card. Carries data-id for keyed reconcile. */
+export function queueDirectoryCardHTML(q: Queue, waitingByQueue: Record<string, WorkItem[]>): string {
+  const live = isLiveDataMode();
+  const cap = (q.online || 0) * 5 || 1;
+  const pressure = Math.min(1, (q.backlog || 0) / cap);
+  const members = sortedQueueMembers(q.id);
+  const workItems = activeWorkInQueue(q, live);
+  const waiting = waitingByQueue[q.id] || [];
+  return `<div class="qdir-card" data-id="${esc(q.id)}">
       <div class="qdir-head" data-id="${esc(q.id)}" role="button" tabindex="0">
         <span class="qn" style="color:${colorFromString(q.name)}">${sfIconTileHtml('queue', { size: 22, bg: colorFromString(q.name) })}${esc(q.name)}</span>
         <span class="qa"><i></i><b class="mono">${q.online}</b> online</span>
@@ -349,7 +351,12 @@ export function queueDirectoryGridHTML(list: Queue[], filter: string, waitingByQ
       <section><h4>Feina activa (${workItems.length})</h4><div class="queue-agent-list">${queueActiveWorkRowsHTML(workItems, live)}</div></section>
       <section><h4>Agents assignats (${members.length})</h4><div class="queue-agent-list">${queueMemberRowsHTML(members)}</div></section>
     </div>`;
-  }).join('');
+}
+
+export function queueDirectoryGridHTML(list: Queue[], filter: string, waitingByQueue: Record<string, WorkItem[]>): string {
+  const sorted = queueDirectorySorted(list, filter);
+  if (!sorted.length) return '<p style="color:var(--faint)">Cap cua coincideix.</p>';
+  return sorted.map((q) => queueDirectoryCardHTML(q, waitingByQueue)).join('');
 }
 export function waitingWorkByQueue(allWork: WorkItem[]): Record<string, WorkItem[]> {
   const map: Record<string, WorkItem[]> = {};
@@ -374,21 +381,31 @@ function skillCard(s: Skill): string {
     <span class="ag-card-status" style="color:${bColor};background:color-mix(in srgb,${bColor} 12%,transparent)"><i style="background:${bColor}"></i>${backlog} pendent${backlog === 1 ? '' : 's'}</span>
   </button>`;
 }
-export function skillsGroupedHTML(list: Skill[]): string {
-  if (!list.length) return '<p style="color:var(--faint)">No skills found.</p>';
+export interface SkillGroup { key: string; typeName: string; skills: Skill[]; }
+
+/** Skills page grouped by type, type order preserved, backlog-heaviest first. */
+export function skillGroups(list: Skill[]): SkillGroup[] {
   const groups = new Map<string, Skill[]>();
   list.forEach((s) => {
     const key = s.type || '_none';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(s);
   });
-  let html = '';
-  for (const [key, skills] of groups) {
-    const typeName = key === '_none' ? 'Sense tipus' : key;
-    skills.sort((a, b) => (Number(b.backlog) || 0) - (Number(a.backlog) || 0) || a.name.localeCompare(b.name));
-    html += `<section class="sk-group"><h4>${esc(typeName)} <span class="cnt">${skills.length}</span></h4><div class="grid ag-grid">${skills.map(skillCard).join('')}</div></section>`;
-  }
-  return html;
+  return [...groups.entries()].map(([key, skills]) => ({
+    key,
+    typeName: key === '_none' ? 'Sense tipus' : key,
+    skills: skills.slice().sort((a, b) => (Number(b.backlog) || 0) - (Number(a.backlog) || 0) || a.name.localeCompare(b.name)),
+  }));
+}
+
+/** Markup for one skill-type group. Carries data-id for keyed reconcile. */
+export function skillGroupHTML(g: SkillGroup): string {
+  return `<section class="sk-group" data-id="${esc(g.key)}"><h4>${esc(g.typeName)} <span class="cnt">${g.skills.length}</span></h4><div class="grid ag-grid">${g.skills.map(skillCard).join('')}</div></section>`;
+}
+
+export function skillsGroupedHTML(list: Skill[]): string {
+  if (!list.length) return '<p style="color:var(--faint)">No skills found.</p>';
+  return skillGroups(list).map(skillGroupHTML).join('');
 }
 
 function workItemRow(w: WorkItem): string {
@@ -404,8 +421,10 @@ function workItemRow(w: WorkItem): string {
     <span class="age mono">${formatWorkTimer(Number(w.ageSec) || 0)}</span>
   </div>`;
 }
-export function workListHTML(list: WorkItem[]): string {
-  if (!list.length) return '<p style="color:var(--faint)">No work items in flight.</p>';
+export interface WorkGroup { key: string; items: WorkItem[]; }
+
+/** Work page grouped by queue, queued-before-active, oldest first. */
+export function workGroups(list: WorkItem[]): WorkGroup[] {
   const sorted = list.slice().sort((a, b) =>
     (a.queueId || '').localeCompare(b.queueId || '') ||
     (a.status === b.status ? 0 : a.status === 'queued' ? -1 : 1) ||
@@ -416,14 +435,20 @@ export function workListHTML(list: WorkItem[]): string {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(w);
   });
-  let html = '';
-  for (const [key, items] of groups) {
-    const q = qById(key);
-    const qName = q ? q.name : 'Sense cua';
-    const qColor = q ? colorFromString(q.name) : 'var(--faint)';
-    html += `<section class="wk-group"><h4 style="color:${qColor}">${esc(qName)} <span class="cnt">${items.length}</span></h4><div class="worklist">${items.map(workItemRow).join('')}</div></section>`;
-  }
-  return html;
+  return [...groups.entries()].map(([key, items]) => ({ key, items }));
+}
+
+/** Markup for one work queue-group. Carries data-id for keyed reconcile. */
+export function workGroupHTML(g: WorkGroup): string {
+  const q = qById(g.key);
+  const qName = q ? q.name : 'Sense cua';
+  const qColor = q ? colorFromString(q.name) : 'var(--faint)';
+  return `<section class="wk-group" data-id="${esc(g.key)}"><h4 style="color:${qColor}">${esc(qName)} <span class="cnt">${g.items.length}</span></h4><div class="worklist">${g.items.map(workItemRow).join('')}</div></section>`;
+}
+
+export function workListHTML(list: WorkItem[]): string {
+  if (!list.length) return '<p style="color:var(--faint)">No work items in flight.</p>';
+  return workGroups(list).map(workGroupHTML).join('');
 }
 
 export { timelineLane };

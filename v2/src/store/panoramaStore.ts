@@ -9,6 +9,7 @@
 import type {
   Agent,
   Queue,
+  WorkItem,
   PanoramaProvider,
   StatusMeta,
 } from '../core/types';
@@ -77,6 +78,21 @@ export async function refreshData(): Promise<void> {
     await provider.refresh({ poll: true });
   }
   notify();
+}
+
+/**
+ * Shared, per-poll work fetch. The Queues page, the Work page and the open
+ * queue detail all need the work list; without this each fired its own
+ * `getWork()` on every poll (the duplicate `GET /work` calls seen in the
+ * console). Caching the promise by store version collapses them into one
+ * request per poll, invalidated automatically when the next poll bumps version.
+ */
+let workCache: { version: number; promise: Promise<WorkItem[]> } | null = null;
+export function getWorkShared(): Promise<WorkItem[]> {
+  if (!workCache || workCache.version !== version) {
+    workCache = { version, promise: Promise.resolve(getProvider().getWork()) };
+  }
+  return workCache.promise;
 }
 
 export function getProvider(): PanoramaProvider {
