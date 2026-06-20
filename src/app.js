@@ -83,17 +83,19 @@ if (isOAuthCallbackPath()) {
     });
   }
 
+  const rerenderActiveView = () => {
+    const view = globalThis.Panorama?.activeViewType?.();
+    if (view === 'operations') {
+      globalThis.updateOverviewMetrics?.();
+      globalThis.updateAgents?.();
+      globalThis.updateRoomPanel?.();
+    }
+    globalThis.refreshFloors?.();
+    globalThis.refreshActiveDetail?.();
+  };
+
   if (provider.subscribe) {
-    provider.subscribe(() => {
-      const view = globalThis.Panorama?.activeViewType?.();
-      if (view === 'operations') {
-        globalThis.updateOverviewMetrics?.();
-        globalThis.updateAgents?.();
-        globalThis.updateRoomPanel?.();
-      }
-      globalThis.refreshFloors?.();
-      globalThis.refreshActiveDetail?.();
-    });
+    provider.subscribe(rerenderActiveView);
   }
 
   function tickClock() {
@@ -103,9 +105,44 @@ if (isOAuthCallbackPath()) {
   tickClock();
   setInterval(tickClock, 1000);
 
+  initRefreshButton(provider, rerenderActiveView);
   initUserMenu(runtimeConfig);
 
   console.info(`[Panorama] data source: ${provider.source}`);
+}
+
+/**
+ * Wire the topbar refresh button: re-poll the data source on demand and
+ * re-render the active view. Spins while a refresh is in flight.
+ * @param {{ refresh?: (opts?: { poll?: boolean }) => Promise<unknown> }} provider
+ * @param {() => void} rerenderActiveView
+ */
+function initRefreshButton(provider, rerenderActiveView) {
+  const btn = document.getElementById('refreshBtn');
+  if (!btn) return;
+
+  let refreshing = false;
+  btn.addEventListener('click', async () => {
+    if (refreshing) return;
+    refreshing = true;
+    btn.classList.add('is-spinning');
+    btn.disabled = true;
+    devConsole.action('data:refresh', provider?.refresh ? 'manual' : 'rerender');
+    try {
+      if (provider?.refresh) {
+        // Salesforce: re-poll. The provider notifies subscribers, which
+        // re-render the view, but call it directly too for mock-like fallbacks.
+        await provider.refresh({ poll: true });
+      }
+      rerenderActiveView();
+    } catch (err) {
+      console.warn('[Panorama] manual refresh failed', err);
+    } finally {
+      refreshing = false;
+      btn.classList.remove('is-spinning');
+      btn.disabled = false;
+    }
+  });
 }
 
 /**

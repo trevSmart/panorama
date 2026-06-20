@@ -7,6 +7,9 @@
   "scripts": {
     "start": "node scripts/start-server.js",
     "dev": "node scripts/start-server.js --dev",
+    "build:v2": "npm --prefix v2 install && npm --prefix v2 run build",
+    "start:v2": "npm --prefix v2 run start",
+    "dev:v2": "npm --prefix v2 run serve",
     "test": "node --test test/*.test.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

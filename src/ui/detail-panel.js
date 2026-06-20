@@ -6,6 +6,7 @@
  */
 
 import { recordDetailOpen } from '../data/detail-recent-store.js';
+import { setHTML } from './reconcile-grid.js';
 import { devConsole } from '../dev/dev-console.js';
 
 const kinds = new Map();
@@ -84,7 +85,11 @@ function detailCtx(mode) {
 function mountDetailSurface(root, config, mode) {
   const ctx = detailCtx(mode);
   const content = renderContent(config, ctx);
-  root.innerHTML = assembleHTML(content, mode);
+  // Re-renders fire on every data poll. If the assembled markup is identical to
+  // what's already mounted, leave the live DOM alone: rewriting it would tear
+  // down and rebuild every node — flashing the external-sprite entity icons and
+  // dropping the still-valid action listeners — for no visible change.
+  if (!setHTML(root, assembleHTML(content, mode))) return;
   content.afterMount?.(root, config, ctx);
 
   root.querySelector('[data-detail-action="maximize"]')?.addEventListener('click', () => {
@@ -126,8 +131,14 @@ function maximizeDetailPanel(config) {
 }
 
 function mountDetailPanel(container, config) {
-  container.innerHTML = '<div class="view view-detail"><div class="detail-panel"></div></div>';
-  const panel = container.querySelector('.detail-panel');
+  // Reuse the existing panel element across polls so its synced-HTML cache (and
+  // therefore the no-repaint fast path in mountDetailSurface) survives. Recreating
+  // the wrapper every refresh would hand mountDetailSurface a blank node each time.
+  let panel = container.querySelector('.detail-panel');
+  if (!panel) {
+    container.innerHTML = '<div class="view view-detail"><div class="detail-panel"></div></div>';
+    panel = container.querySelector('.detail-panel');
+  }
   if (panel) mountDetailSurface(panel, config, 'full');
 }
 

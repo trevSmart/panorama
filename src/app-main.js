@@ -8,6 +8,7 @@ import { backgroundUrl } from './data/floor-backgrounds.js';
 import { registerFloorEditorPanel } from './floor-editor.js';
 import { buildAgentQueueSummaries } from './agent-queue-summary.js';
 import { channelIconTileHtml, channelIconName, colorFromString, sfIconColor, sfIconTileHtml, skillIconTileHtml } from './ui/sf-icons.js';
+import { reconcileGrid, setHTML } from './ui/reconcile-grid.js';
 import { formatDurationMin, formatDurationSec, formatWorkTimer } from './ui/duration.js';
 import {
   closeDetailDrawer,
@@ -182,11 +183,13 @@ function updateRoomPanel() {
   if (!canvas) return;
   syncTowerDisplayH();
   const b = buildBuilding();
-  canvas.innerHTML = buildingCanvasHTML(b);
-  roomTipForCanvas(canvas);
-  const statsEl = root.querySelector('.bldg-head .bstats');
-  if (statsEl) statsEl.innerHTML = statsHTML({ occ: b.occupied, hot: b.hot });
-  attachSeats(root);
+  // Runs on every data poll *and* every animation frame — only rebuild the seats
+  // (and re-bind them) when the canvas markup actually changed.
+  if (setHTML(canvas, buildingCanvasHTML(b))) {
+    roomTipForCanvas(canvas);
+    attachSeats(root);
+  }
+  setHTML(root.querySelector('.bldg-head .bstats'), statsHTML({ occ: b.occupied, hot: b.hot }));
 }
 function activeViewType() { return PanoramaWorkspace.activeViewType(); }
 function isView(type) { return activeViewType() === type; }
@@ -197,10 +200,8 @@ function activePanelEl() {
 function updateOverviewMetrics() {
   const root = activePanelEl();
   const h = health();
-  const pillars = root?.querySelector('.pillars');
-  if (pillars) pillars.innerHTML = pillarsHTML(h);
-  const verdict = root?.querySelector('.verdict');
-  if (verdict) verdict.innerHTML = verdictHTML(h);
+  setHTML(root?.querySelector('.pillars'), pillarsHTML(h));
+  setHTML(root?.querySelector('.verdict'), verdictHTML(h));
 }
 function scrollToAnchor(anchor) {
   const root = activePanelEl();
@@ -529,16 +530,25 @@ function attachQueueCardClicks(container) {
     openQueueDrawer(card.dataset.id);
   });
 }
-function agentGridHTML() {
+function agentGridList() {
   let list = globalThis.AGENTS.slice();
   if (filter.status !== 'all') list = list.filter(a => a.status === filter.status);
   list.sort((a, b) => (b.flag - a.flag) || (b.used - a.used));
-  return list.map(agentCard).join('') || '<p style="color:var(--faint)">Cap agent coincideix.</p>';
+  return list;
+}
+function agentGridHTML() {
+  return agentGridList().map(agentCard).join('') || '<p style="color:var(--faint)">Cap agent coincideix.</p>';
 }
 function updateAgents() {
   const root = activePanelEl();
   const grid = root?.querySelector('#agentGrid'); if (!grid) return;
-  grid.innerHTML = agentGridHTML();
+  // Keyed reconcile: cards whose markup is unchanged keep their exact DOM node,
+  // so a poll that returns identical data repaints nothing (no entity-icon flash).
+  reconcileGrid(grid, agentGridList(), {
+    keyOf: (a) => a.id,
+    renderItem: agentCard,
+    emptyHTML: '<p style="color:var(--faint)">Cap agent coincideix.</p>',
+  });
   grid.querySelectorAll('.card').forEach(c => c.onclick = () => openDrawer(c.dataset.id));
   root.querySelectorAll('[data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === filter.status));
 }

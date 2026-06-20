@@ -415,6 +415,38 @@ connected org:
 
 ---
 
+## 11b. Settings modal — controls persisted but not wired
+
+Inventory (2026-06-20) of controls in the **Configuració** modal ([index.html](../index.html) §Settings modal) that are saved to `localStorage` via [src/settings/preferences.js](../src/settings/preferences.js) but are **never read by any feature** — changing them has no effect beyond persistence. Each needs to be connected to real behavior.
+
+> Functional today (for reference, do not re-add): `settingsDataSource`, `settingsSfReauth`, `settingsRefreshInterval` + `settingsAutoRefresh` (via `getRefreshConfig`), `settingsShowConsole`, `settingsClearStorage`, and the read-only status badges (`settingsConnStatus`, `settingsSfClientId`, `settingsSfLoginUrl`, `settingsSfSession`, `settingsEnvLabel`, `settingsActiveUser`).
+
+### 11b.1 Dades — Umbrals d'alerta (UMI)
+
+- [ ] **`settingsMaxWait` — Temps màxim d'espera** — wire to the queue wait-time alert threshold (seconds). Currently saved, never consumed; queue alerts use hardcoded/no threshold.
+- [ ] **`settingsSlaTarget` — SLA objectiu (%)** — feed into Overview/KPI SLA calculations instead of a fixed value.
+- [ ] **`settingsAlertPct` — Agents en alerta (%)** — drive the global warning that triggers when this proportion of agents is in alert state.
+
+### 11b.2 Aparença — Visualització
+
+- [ ] **`settingsDefaultFloorView` — Vista de planta per defecte (2D/3D)** — apply as the initial floor-view mode on load.
+- [ ] **`settingsShowAvatars` — Mostrar avatars** — toggle agent profile images on the floor view.
+- [ ] **`settingsAnimations` — Animacions 3D** — toggle animated towers/beacons in the 3D view.
+
+### 11b.3 Aparença — Idioma i format
+
+- [ ] **`settingsLang` — Idioma de la interfície (ca/es/en)** — switch UI language. Requires an i18n layer (UI is currently Catalan-only; see §10.3 "Migrate UI copy").
+- [ ] **`settingsTimeFormat` — Format horari (24h/12h)** — apply to all time rendering across the UI.
+
+### 11b.4 Notificacions — Alertes del sistema
+
+- [ ] **`settingsBrowserNotifs` — Notificacions del navegador** — request `Notification` permission and emit push notifications when the tab is not visible.
+- [ ] **`settingsQueueAlert` — Alerta de cua crítica** — emit a notification when a queue exceeds the max wait threshold (ties to `settingsMaxWait`).
+- [ ] **`settingsAgentOfflineAlert` — Alerta d'agent desconnectat** — emit a notification when an agent goes offline unexpectedly.
+- [ ] **`settingsSoundAlert` — So d'alerta** — play a sound when a critical notification fires.
+
+---
+
 ## 11. Explicitly out of scope (native but not supervisor parity)
 
 These appear in Omni Supervisor docs but are **agent-side** or **admin setup**, not supervisor monitoring parity:
@@ -439,4 +471,4 @@ Track separately if Panorama later needs admin or agent surfaces.
 
 ---
 
-*Last updated: 2026-06-13 — initial inventory from Salesforce Omni Supervisor (Summer ’25) documentation and current Panorama codebase.*
+*Last updated: 2026-06-20 — added §11b inventory of settings-modal controls persisted but not wired to behavior.*

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { reconcileGrid } from '../src/ui/reconcile-grid.js';
+import { reconcileGrid, setHTML } from '../src/ui/reconcile-grid.js';
 
 // Minimal DOM stand-in: just enough surface for reconcileGrid to operate on.
 // Tracks node identity so tests can assert which nodes were reused vs recreated.
@@ -16,8 +16,20 @@ function makeEl(html = '') {
     get innerHTML() { return this._html; },
     set innerHTML(v) { this._html = v; this.children = []; },
     get firstChild() { return this.children[0] || null; },
-    appendChild(child) { this.children.push(child); child.parentNode = this; return child; },
+    get nextSibling() {
+      const siblings = this.parentNode ? this.parentNode.children : [];
+      return siblings[siblings.indexOf(this) + 1] || null;
+    },
+    appendChild(child) {
+      // Real DOM semantics: a node lives in one place, so detach it first.
+      if (child.parentNode) child.parentNode.removeChild(child);
+      this.children.push(child);
+      child.parentNode = this;
+      return child;
+    },
     insertBefore(child, ref) {
+      // Real DOM semantics: detach from its current position before inserting.
+      if (child.parentNode) child.parentNode.removeChild(child);
       const i = ref ? this.children.indexOf(ref) : this.children.length;
       this.children.splice(i < 0 ? this.children.length : i, 0, child);
       child.parentNode = this;
@@ -133,4 +145,41 @@ test('empty item list renders the provided empty placeholder', () => {
 
   assert.equal(grid.children.length, 0);
   assert.match(grid.innerHTML, /Cap agent/);
+});
+
+/* ───────── setHTML: single-block "repaint only if changed" ───────── */
+
+test('setHTML writes innerHTML on first call and reports a change', () => {
+  const el = makeEl();
+  const changed = setHTML(el, '<span>hi</span>');
+
+  assert.equal(changed, true);
+  assert.equal(el.innerHTML, '<span>hi</span>');
+});
+
+test('setHTML skips the write when the html is identical', () => {
+  const el = makeEl();
+  setHTML(el, '<span>hi</span>');
+  // Mark the live node so we can detect whether innerHTML was reassigned
+  // (the setter resets children); a skipped write must leave it untouched.
+  el.children.push({ marker: true });
+
+  const changed = setHTML(el, '<span>hi</span>');
+
+  assert.equal(changed, false, 'identical html must not be reassigned');
+  assert.equal(el.children.length, 1, 'children left intact — no repaint');
+});
+
+test('setHTML re-writes when the html changes', () => {
+  const el = makeEl();
+  setHTML(el, '<span>hi</span>');
+
+  const changed = setHTML(el, '<span>bye</span>');
+
+  assert.equal(changed, true);
+  assert.equal(el.innerHTML, '<span>bye</span>');
+});
+
+test('setHTML on a null element is a no-op', () => {
+  assert.equal(setHTML(null, '<span>hi</span>'), false);
 });

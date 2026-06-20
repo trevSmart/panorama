@@ -612,6 +612,39 @@
       color: var(--dim)
     }
 
+    .topbar-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: var(--dim);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      cursor: pointer;
+      transition: .15s
+    }
+
+    .topbar-btn:hover {
+      color: var(--ink);
+      border-color: var(--line-2)
+    }
+
+    .topbar-btn:disabled {
+      cursor: default;
+      opacity: .7
+    }
+
+    .topbar-btn.is-spinning svg {
+      animation: spin .8s linear infinite
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
     .me {
       display: flex;
       align-items: center;
@@ -4418,6 +4451,13 @@
       <div class="brand" onclick="Panorama.home()"><img src="assets/panorama-logo.png" alt="Panorama" class="brand-logo"></div>
       <div class="top-right">
         <span class="clock mono" id="clock">--:--:--</span>
+        <button class="topbar-btn" id="refreshBtn" type="button" title="Refrescar dades" aria-label="Refrescar dades">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+        </button>
         <div class="qsearch" id="globalSearch">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="7" />

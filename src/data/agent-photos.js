@@ -4,6 +4,9 @@ import { devConsole } from '../dev/dev-console.js';
 /** @type {Map<string, string>} */
 const blobUrlsByAgentId = new Map();
 
+/** Source photo URL behind each cached blob, so we only refetch when it changes. */
+const loadedPhotoUrlByAgentId = new Map();
+
 /** @type {Map<string, Promise<void>>} */
 const attachInFlightByAgentId = new Map();
 
@@ -12,11 +15,13 @@ function revokeAgentBlob(agentId) {
   if (!url) return;
   URL.revokeObjectURL(url);
   blobUrlsByAgentId.delete(agentId);
+  loadedPhotoUrlByAgentId.delete(agentId);
 }
 
 export function revokeAgentPhotoBlobs() {
   blobUrlsByAgentId.forEach((url) => URL.revokeObjectURL(url));
   blobUrlsByAgentId.clear();
+  loadedPhotoUrlByAgentId.clear();
   attachInFlightByAgentId.clear();
 }
 
@@ -70,6 +75,7 @@ async function loadAgentPhotoBlob(agentId, photoUrl, accessToken) {
       const blobUrl = URL.createObjectURL(await res.blob());
       revokeAgentBlob(agentId);
       blobUrlsByAgentId.set(agentId, blobUrl);
+      loadedPhotoUrlByAgentId.set(agentId, photoUrl);
     } catch (err) {
       revokeAgentBlob(agentId);
       console.warn('[Panorama] profile photo fetch failed', agentId, err);
@@ -96,6 +102,12 @@ export async function attachAgentPhotoBlobs(agents, accessToken, instanceUrl) {
       return;
     }
     agent.photo = photoUrl;
+    // Already holding a blob for this exact source photo: keep the same object
+    // URL so the rendered <img src> is byte-identical across polls and the card
+    // reconciles to a no-op instead of re-decoding the image (a visible flash).
+    if (blobUrlsByAgentId.has(agent.id) && loadedPhotoUrlByAgentId.get(agent.id) === photoUrl) {
+      return;
+    }
     await loadAgentPhotoBlob(agent.id, photoUrl, accessToken);
   }));
 }

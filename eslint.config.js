@@ -11,6 +11,9 @@ export default [
       'tmp/**',
       '.sfdx/**',
       '.sf/**',
+      // Artefactes de build (bundles minificats generats per Vite)
+      'dist/**',
+      'v2/dist/**',
     ],
   },
 
@@ -56,6 +59,26 @@ export default [
   // Tests amb node:test
   {
     files: ['test/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
+
+  // v2: codi de navegador (UI, data, lib…)
+  {
+    files: ['v2/src/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        // Façana del workspace assignada a globalThis a workspace-shell.js
+        PanoramaWorkspace: 'readonly',
+      },
+    },
+  },
+
+  // v2: codi de Node (servidor, proxies, càrrega d'entorn)
+  {
+    files: ['v2/server.js', 'v2/server/**/*.js'],
     languageOptions: {
       globals: { ...globals.node },
     },
