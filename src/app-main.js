@@ -32,7 +32,7 @@ import {
 
 /* ───────── Helpers ───────── */
 const initials = n => n.split(' ').map(w => w[0]).slice(0, 2).join('');
-const qById = id => QUEUES.find(q => q.id === id);
+const qById = id => globalThis.QUEUES.find(q => q.id === id);
 const avatarImgOnError = "this.parentElement.classList.add('av--initials');this.remove()";
 function agentAvatarInnerHTML(a) {
   const src = agentPhotoSrc(a);
@@ -49,9 +49,9 @@ function agentAvatarHTML(a, className = 'tip-av') {
   return `<div class="${className}${src ? '' : ' av--initials'}" style="background:${colorFromString(a.name)}">${agentAvatarInnerHTML(a)}</div>`;
 }
 function agentMapTipHTML(a) {
-  const st = STATUS[a.status];
+  const st = globalThis.STATUS[a.status];
   const load = a.max ? Math.round(a.used / a.max * 100) : 0;
-  const detail = a.status === 'offline' ? teamOf(a) : `${a.used}/${a.max} · ${load}% · ${teamOf(a)}`;
+  const detail = a.status === 'offline' ? globalThis.teamOf(a) : `${a.used}/${a.max} · ${load}% · ${globalThis.teamOf(a)}`;
   const av = agentAvatarHTML(a);
   return `<div class="tip-row">${av}<div><div class="tn">${a.name}${a.flag ? ' ⚑' : ''}</div><div class="tm">${a.role}</div><div class="tip-st" style="color:${st.c}"><i style="background:${st.c}"></i>${st.lbl}</div></div></div><div class="tl">${detail}</div>`;
 }
@@ -97,13 +97,13 @@ function ringSVG(used, max, color, size = 48) {
 
 /* ───────── Health computation ───────── */
 function health() {
-  const online = AGENTS.filter(a => a.status === 'online').length;
-  const backlog = queueState.reduce((s, q) => s + (q.backlog || 0), 0);
-  const longest = queueState.length ? Math.max(0, ...queueState.map(q => q.longest || 0)) : 0;
-  const totCap = AGENTS.filter(a => a.status !== 'offline').reduce((s, a) => s + (a.max || 0), 0);
-  const totUsed = AGENTS.reduce((s, a) => s + (a.used || 0), 0);
+  const online = globalThis.AGENTS.filter(a => a.status === 'online').length;
+  const backlog = globalThis.queueState.reduce((s, q) => s + (q.backlog || 0), 0);
+  const longest = globalThis.queueState.length ? Math.max(0, ...globalThis.queueState.map(q => q.longest || 0)) : 0;
+  const totCap = globalThis.AGENTS.filter(a => a.status !== 'offline').reduce((s, a) => s + (a.max || 0), 0);
+  const totUsed = globalThis.AGENTS.reduce((s, a) => s + (a.used || 0), 0);
   const util = totCap > 0 ? Math.round(totUsed / totCap * 100) : 0;
-  const flags = AGENTS.filter(a => a.flag).length;
+  const flags = globalThis.AGENTS.filter(a => a.flag).length;
   const sla = Math.max(70, Math.min(99, 98 - Math.round(backlog * .9) - (longest > 180 ? 6 : 0)));
   const lvl = (v, w, a) => v >= a ? 'alert' : v >= w ? 'watch' : 'ok';
   const allPillars = [
@@ -141,10 +141,9 @@ function verdictHTML(h) {
   if (h.worst === 'ok') { dot = 'ok'; title = 'Tot va bé.'; sub = 'Cap cosa que requereixi la teva atenció ara mateix. Pots dedicar-te a una altra cosa amb tranquil·litat.'; }
   else if (h.worst === 'watch') { dot = 'watch'; title = 'Tot bé, amb un ull a sobre.'; sub = 'Res urgent, però hi ha ' + attn.length + (attn.length === 1 ? ' indicador' : ' indicadors') + ' que val la pena vigilar: ' + attn.map(p => p.lbl.toLowerCase()).join(', ') + '.'; }
   else { const al = h.pillars.filter(p => p.state === 'alert'); dot = 'alert'; title = al.length === 1 ? 'Una cosa necessita la teva atenció.' : 'Hi ha coses per atendre.'; sub = 'Mira ' + al.map(p => p.lbl.toLowerCase()).join(' i ') + '. Toca per anar directe al detall.'; }
-  return `<span class="vdot ${dot}"></span><div><h1>${title}</h1><div class="vsub">${sub}</div><div class="vmeta"><span class="live"><i></i>en directe</span><span>·</span><span><b class="mono">${h.online}</b> agents online</span><span>·</span><span><b class="mono">${QUEUES.length}</b> cues actives</span><span>·</span><span>actualitzat ara mateix</span></div></div>`;
+  return `<span class="vdot ${dot}"></span><div><h1>${title}</h1><div class="vsub">${sub}</div><div class="vmeta"><span class="live"><i></i>en directe</span><span>·</span><span><b class="mono">${h.online}</b> agents online</span><span>·</span><span><b class="mono">${globalThis.QUEUES.length}</b> cues actives</span><span>·</span><span>actualitzat ara mateix</span></div></div>`;
 }
 function pillarsHTML(h) { return h.pillars.map(p => `<button class="pillar ${p.state !== 'ok' ? 'attn ' + p.state : ''}" onclick="Panorama.scrollTo('${p.view}')"><span class="arrow">→</span><div class="pl">${p.lbl}</div><div class="pv${String(p.val).includes(' ') ? ' long' : ''}">${p.val}</div><div class="ps"><i style="background:var(--${p.state})"></i><span>${p.msg[p.state]}</span></div></button>`).join(''); }
-function roomStats() { let occ = 0, hot = 0; FLOORS.forEach(f => f.assigned.forEach(s => { const a = s.agent; if (a && a.status !== 'offline') { occ++; const L = a.max ? a.used / a.max : 0; if (L >= .8) hot++; } })); return { occ, hot }; }
 function statsHTML(s) { return `<b class="mono">${s.occ}</b> ocupats · <b class="mono" style="color:${s.hot ? 'var(--alert)' : 'var(--ink)'}">${s.hot}</b> punts calents`; }
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -159,7 +158,7 @@ function buildingCanvasHTML(b) {
   }).join('');
   return `<div class="room-canvas-stage" style="aspect-ratio:${w} / ${h}">${b.svg}<div class="floor-labels" aria-hidden="true">${labels}</div></div>`;
 }
-function legendHTML() { return `<div class="lg-group"><div class="lt">Equips</div><div class="lg-list">${Object.entries(TEAM_COLOR).map(([t, c]) => `<div class="li"><i style="width:11px;height:11px;border-radius:3px;background:${rgbc(c)}"></i>${t}</div>`).join('')}</div></div>`; }
+function legendHTML() { return `<div class="lg-group"><div class="lt">Equips</div><div class="lg-list">${Object.entries(globalThis.TEAM_COLOR).map(([t, c]) => `<div class="li"><i style="width:11px;height:11px;border-radius:3px;background:${rgbc(c)}"></i>${t}</div>`).join('')}</div></div>`; }
 function roomStageHTML(compact) {
   const b = buildBuilding();
   const s = { occ: b.occupied, hot: b.hot };
@@ -223,7 +222,7 @@ function startBuildingAnimation() {
 
 function renderDetail(container) {
   const h = health();
-  const c = { all: AGENTS.length }; Object.keys(STATUS).forEach(s => c[s] = AGENTS.filter(a => a.status === s).length);
+  const c = { all: globalThis.AGENTS.length }; Object.keys(globalThis.STATUS).forEach(s => c[s] = globalThis.AGENTS.filter(a => a.status === s).length);
   const room = roomStageHTML(true);
   container.innerHTML = `
     <div class="view view-ops">
@@ -236,11 +235,11 @@ function renderDetail(container) {
         <div class="ops-resizer" role="separator" aria-orientation="vertical" tabindex="0" title="Arrossega per ajustar l'amplada"></div>
         <div class="ops-data">
           <section id="sec-queues">
-            <div class="sec-title">${sfIconTileHtml('queue', { size: 20 })} Cues <span class="cnt">${QUEUES.length}</span></div>
-            <div class="qgrid">${queueState.map(queueCard).join('')}</div>
+            <div class="sec-title">${sfIconTileHtml('queue', { size: 20 })} Cues <span class="cnt">${globalThis.QUEUES.length}</span></div>
+            <div class="qgrid">${globalThis.queueState.map(queueCard).join('')}</div>
           </section>
           <section id="sec-agents">
-            <div class="sec-title">${sfIconTileHtml('user', { size: 20 })} Agents <span class="cnt">${AGENTS.length}</span></div>
+            <div class="sec-title">${sfIconTileHtml('user', { size: 20 })} Agents <span class="cnt">${globalThis.AGENTS.length}</span></div>
             <div class="toolbar"><div class="chips">
               <button class="chip ${filter.status === 'all' ? 'on' : ''}" data-st="all">Tots <b class="mono">${c.all}</b></button>
               <button class="chip ${filter.status === 'online' ? 'on' : ''}" data-st="online"><i style="background:var(--ok)"></i>Online ${c.online}</button>
@@ -336,7 +335,7 @@ function attachOpsResizer(container) {
   });
 }
 
-/** Rebuild FLOORS from the persisted layout and re-render every building view. */
+/** Rebuild globalThis.FLOORS from the persisted layout and re-render every building view. */
 function refreshFloors() {
   globalThis.FLOORS = buildFloorsForAgents(globalThis.AGENTS || []);
   buildDir = loadCustomRoomDir();
@@ -368,15 +367,14 @@ const Scene3D = {
     scene.add(new THREE.AmbientLight(0xffffff, 0.22));
     const CELL = 1.05, SEAT = 0.8, SLAB_T = 0.14, minH = 0.6, maxH = 5.2, baseH = SLAB_T, capH = SLAB_T;
     let minc = 1e9, maxc = -1e9, minr = 1e9, maxr = -1e9;
-    FLOORS.forEach(f => f.cells.forEach(([c, r]) => { minc = Math.min(minc, c); maxc = Math.max(maxc, c); minr = Math.min(minr, r); maxr = Math.max(maxr, r); }));
-    const floorY = computeFloorStack(FLOORS, { minH, maxH, slabT: SLAB_T, beaconPad: 0.5, marginMin: 0.3, marginBase: 0.55 });
+    globalThis.FLOORS.forEach(f => f.cells.forEach(([c, r]) => { minc = Math.min(minc, c); maxc = Math.max(maxc, c); minr = Math.min(minr, r); maxr = Math.max(maxr, r); }));
+    const floorY = computeFloorStack(globalThis.FLOORS, { minH, maxH, slabT: SLAB_T, beaconPad: 0.5, marginMin: 0.3, marginBase: 0.55 });
     const cx = (minc + maxc) / 2 * CELL, cz = (minr + maxr) / 2 * CELL;
-    const tcol = t => { const c = TEAM_COLOR[t] || [140, 140, 150]; return new THREE.Color(c[0] / 255, c[1] / 255, c[2] / 255); };
+    const tcol = t => { const c = globalThis.TEAM_COLOR[t] || [140, 140, 150]; return new THREE.Color(c[0] / 255, c[1] / 255, c[2] / 255); };
     const mc = {};
     const opaqueMat = t => mc['o' + t] || (mc['o' + t] = new THREE.MeshStandardMaterial({ color: tcol(t), roughness: .55 }));
     const capMat = t => mc['c' + t] || (mc['c' + t] = new THREE.MeshStandardMaterial({ color: tcol(t), roughness: .55, transparent: true, opacity: .72 }));
     const shaftMat = t => mc['s' + t] || (mc['s' + t] = new THREE.MeshStandardMaterial({ color: tcol(t), roughness: .4, transparent: true, opacity: .26, depthWrite: false }));
-    const idleMat = t => mc['i' + t] || (mc['i' + t] = new THREE.LineBasicMaterial({ color: tcol(t), transparent: true, opacity: .5 }));
     const slabMat = new THREE.MeshStandardMaterial({ color: 0xece9e4, roughness: .9, transparent: true, opacity: .34, depthWrite: false });
     const offMat = new THREE.LineBasicMaterial({ color: 0x9b97a6, transparent: true, opacity: .55 });
     const pickMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
@@ -387,14 +385,14 @@ const Scene3D = {
     const lineBox = (h, m) => { const g = new THREE.BoxGeometry(SEAT, h, SEAT); g.translate(0, h / 2, 0); return new THREE.LineSegments(new THREE.EdgesGeometry(g), m); };
     const root = new THREE.Group(); scene.add(root);
     const pickables = [], beacons = [], towerGroups = [], towers = new Map();
-    FLOORS.forEach((f, i) => {
+    globalThis.FLOORS.forEach((f, i) => {
       const fy = floorY[i];
       f.cells.forEach(([c, r]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(CELL * 0.94, SLAB_T, CELL * 0.94), slabMat); m.position.set(c * CELL - cx, fy, r * CELL - cz); root.add(m); });
       const topY = fy + SLAB_T / 2;
       f.assigned.forEach(s => {
         const a = s.agent; if (!a) return;
         const tg = new THREE.Group(); tg.position.set(s.c * CELL - cx, topY, s.r * CELL - cz);
-        const team = teamOf(a); let Hh;
+        const team = globalThis.teamOf(a); let Hh;
         if (a.status === 'offline') { Hh = 0.45; tg.add(lineBox(Hh, offMat)); }
         else {
           const L = a.max ? a.used / a.max : 0;
@@ -430,7 +428,7 @@ const Scene3D = {
       const tip = roomTip3d();
       const rc = rect(); ndc.x = ((e.clientX - rc.left) / rc.width) * 2 - 1; ndc.y = -((e.clientY - rc.top) / rc.height) * 2 + 1; ray.setFromCamera(ndc, camera); const hit = ray.intersectObjects(pickables, false);
       if (hit.length) {
-        const a = AGENTS.find(x => x.id === hit[0].object.userData.id); hoverId = a ? a.id : null;
+        const a = globalThis.AGENTS.find(x => x.id === hit[0].object.userData.id); hoverId = a ? a.id : null;
         if (a) { if (a.id !== tipAgentId) { tip.innerHTML = agentMapTipHTML(a); tipAgentId = a.id; } showRoomTip(tip, e.clientX, e.clientY); el.style.cursor = 'pointer'; }
       } else { hoverId = null; tipAgentId = null; hideRoomTip(tip); el.style.cursor = 'grab'; }
     };
@@ -475,13 +473,13 @@ const Scene3D = {
       else if (t.beacon) t.beacon.position.y = bh + 0.5;
     });
   },
-  dispose() { if (!this.mounted) return; const s = this._; try { s.stop(); window.removeEventListener('resize', s.onResize); s.renderer.dispose(); if (s.renderer.domElement && s.renderer.domElement.parentNode) s.renderer.domElement.parentNode.removeChild(s.renderer.domElement); } catch (e) { } this.mounted = false; this._ = null; }
+  dispose() { if (!this.mounted) return; const s = this._; try { s.stop(); window.removeEventListener('resize', s.onResize); s.renderer.dispose(); if (s.renderer.domElement && s.renderer.domElement.parentNode) s.renderer.domElement.parentNode.removeChild(s.renderer.domElement); } catch { /* ignore teardown errors */ } this.mounted = false; this._ = null; }
 };
 
 /* ───────── Agents view ───────── */
 let filter = { status: 'all' };
 function agentCard(a) {
-  const st = STATUS[a.status];
+  const st = globalThis.STATUS[a.status];
   const chanCells = ['veu', 'chat', 'wa', 'cas'].map(c => {
     const n = a.chans[c] || 0;
     return `<div class="c ${n > 0 ? 'active' : 'zero'}">${channelIconTileHtml(c, { size: 21 })}<div class="n">${n}</div></div>`;
@@ -531,7 +529,7 @@ function attachQueueCardClicks(container) {
   });
 }
 function agentGridHTML() {
-  let list = AGENTS.slice();
+  let list = globalThis.AGENTS.slice();
   if (filter.status !== 'all') list = list.filter(a => a.status === filter.status);
   list.sort((a, b) => (b.flag - a.flag) || (b.used - a.used));
   return list.map(agentCard).join('') || '<p style="color:var(--faint)">Cap agent coincideix.</p>';
@@ -548,7 +546,7 @@ function updateAgents() {
 // Every Omni-enabled agent (connected or not), distinct from Operations which
 // only lists currently connected agents.
 function agentDirectoryCard(a) {
-  const st = STATUS[a.status] || STATUS.offline;
+  const st = globalThis.STATUS[a.status] || globalThis.STATUS.offline;
   return `<button type="button" class="ag-card" data-id="${a.id}">
     <div class="ag-card-av">${agentAvatarHTML(a, 'ag-av')}<i class="ag-dot" style="background:${st.c}"></i></div>
     <div class="ag-card-body">
@@ -771,7 +769,7 @@ function renderSkillDetail(config) {
           <div><div class="nm">${esc(title)}</div><div class="rl">Skill</div></div>
         </div>`,
       body: '<p style="color:var(--faint)">Loading skill…</p>',
-      afterMount(_root, cfg) {
+      afterMount() {
         ensureSkillCatalog()
           .then(() => refreshActiveDetail())
           .catch((err) => console.warn('[Panorama] failed to load skill catalog', err));
@@ -821,7 +819,7 @@ function skillAgentRowsHTML(list) {
   const sorted = list.slice().sort((a, b) =>
     (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.name.localeCompare(b.name));
   return sorted.map((a) => {
-    const st = STATUS[a.status] || STATUS.offline;
+    const st = globalThis.STATUS[a.status] || globalThis.STATUS.offline;
     return `<button type="button" class="queue-agent-row" data-agent-id="${detailEsc(a.id)}">
       <div class="queue-agent-av">${agentAvatarHTML(a, 'ag-av')}<i class="ag-dot" style="background:${st.c}"></i></div>
       <div class="queue-agent-copy"><div class="queue-agent-name">${detailEsc(a.name)}</div><div class="queue-agent-role">${detailEsc(a.role || 'Agent')}</div></div>
@@ -839,7 +837,7 @@ function workItemRow(w) {
   const qColor = q ? colorFromString(q.name) : 'var(--faint)';
   return `<div class="wi">
     <div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div>
-    <div class="info"><div class="t">${detailEsc(w.subject)}</div><div class="m">${CH_LBL[w.channelKey] || 'Canal'} · ${assignee}</div></div>
+    <div class="info"><div class="t">${detailEsc(w.subject)}</div><div class="m">${globalThis.CH_LBL[w.channelKey] || 'Canal'} · ${assignee}</div></div>
     <span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: qColor })}<span style="color:${qColor}">${detailEsc(qName)}</span></span>
     <span class="age mono">${formatWorkTimer(Number(w.ageSec) || 0)}</span>
   </div>`;
@@ -898,25 +896,25 @@ function detailEsc(s) {
 function findAgent(id) {
   const provider = globalThis.PanoramaProvider;
   if (provider?.getAgentById) return provider.getAgentById(id);
-  return AGENTS.find((x) => x.id === id);
+  return globalThis.AGENTS.find((x) => x.id === id);
 }
 
 function renderAgentDetail(config) {
   const a = findAgent(config.id);
   if (!a) return null;
-  const st = STATUS[a.status];
+  const st = globalThis.STATUS[a.status];
   const live = isLiveDataMode();
   const esc = detailEsc;
-  const items = live ? [] : Array.from({ length: Math.max(1, a.used || 1) }).map(() => { const w = { ...pick(WORK_KINDS) }; if (w.t === 'Cas #') w.t = 'Cas #' + rnd(48210, 48999); return { ...w, age: rnd(1, 28) }; });
+  const items = live ? [] : Array.from({ length: Math.max(1, a.used || 1) }).map(() => { const w = { ...globalThis.pick(globalThis.WORK_KINDS) }; if (w.t === 'Cas #') w.t = 'Cas #' + globalThis.rnd(48210, 48999); return { ...w, age: globalThis.rnd(1, 28) }; });
   const stB = [{ l: 0, w: 22, c: '#B7B3C0', t: 'Desconnectat' }, { l: 22, w: 30, c: '#15A06A', t: 'Online' }, { l: 52, w: 14, c: '#D9981F', t: 'Pausa' }, { l: 66, w: 34, c: '#15A06A', t: 'Online' }];
   const wkB = [{ l: 24, w: 16, c: '#6A5BE8', t: 'Cas' }, { l: 42, w: 9, c: '#E05641', t: '☎' }, { l: 55, w: 11, c: '#15A06A', t: '💬' }, { l: 70, w: 18, c: '#6A5BE8', t: '☎' }, { l: 90, w: 8, c: '#D9981F', t: '' }];
-  const queueSummaries = buildAgentQueueSummaries(live ? a : { ...a, work: items }, QUEUES);
+  const queueSummaries = buildAgentQueueSummaries(live ? a : { ...a, work: items }, globalThis.QUEUES);
   const assignedQueueWorkItemHTML = (w) => {
     const label = live ? (w.label || 'Work item') : (w.t || 'Work item');
     const channelKey = w.channelKey || 'cas';
     const detail = live
-      ? (w.subject || CH_LBL[channelKey] || w.channel || 'Work item')
-      : (CH_LBL[channelKey] || 'Work item');
+      ? (w.subject || globalThis.CH_LBL[channelKey] || w.channel || 'Work item')
+      : (globalThis.CH_LBL[channelKey] || 'Work item');
     const age = live ? w.ageMin : w.age;
     return `<div class="assigned-queue-work-item">
       <div class="assigned-queue-work-icon">${channelIconTileHtml(channelKey, { size: 24 })}</div>
@@ -950,13 +948,13 @@ function renderAgentDetail(config) {
   const workSection = live
     ? (liveItems.length > 0
       ? `<section><h4>Active work (${liveItems.length})</h4><div class="worklist">${liveItems.map(w => {
-        const chLabel = CH_LBL[w.channelKey] || w.channel || 'Channel';
+        const chLabel = globalThis.CH_LBL[w.channelKey] || w.channel || 'Channel';
         const queuePill = w.queue ? `<span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: colorFromString(w.queue) })}<span style="color:${colorFromString(w.queue)}">${esc(w.queue)}</span></span>` : '';
         const subj = w.subject ? `<div class="m">${esc(w.subject)}</div>` : `<div class="m">${esc(chLabel)}</div>`;
         return `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${esc(w.label)}</div>${subj}</div>${queuePill}<span class="age mono">${formatDurationMin(w.ageMin)}</span></div>`;
       }).join('')}</div></section>`
       : '')
-    : `<section><h4>Feina activa (${items.length})</h4><div class="worklist">${items.map(w => `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${w.t}</div><div class="m">${CH_LBL[w.channelKey] || 'Canal'}</div></div><span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: colorFromString(qById(w.q).name) })}<span style="color:${colorFromString(qById(w.q).name)}">${qById(w.q).name}</span></span><span class="age mono">${formatDurationMin(w.age)}</span></div>`).join('')}</div></section>`;
+    : `<section><h4>Feina activa (${items.length})</h4><div class="worklist">${items.map(w => `<div class="wi"><div class="wic wic--sf">${channelIconTileHtml(w.channelKey, { size: 32 })}</div><div class="info"><div class="t">${w.t}</div><div class="m">${globalThis.CH_LBL[w.channelKey] || 'Canal'}</div></div><span class="pill-q">${sfIconTileHtml('queue', { size: 14, bg: colorFromString(qById(w.q).name) })}<span style="color:${colorFromString(qById(w.q).name)}">${qById(w.q).name}</span></span><span class="age mono">${formatDurationMin(w.age)}</span></div>`).join('')}</div></section>`;
 
   return {
     head: `<div class="dr-id"><div class="ring ${a.status === 'busy' ? 'breathe' : ''}" style="--st:${st.c};width:58px;height:58px">${ringSVG(a.used, a.max, st.c, 58)}${agentRingFaceHTML(a)}</div>
@@ -1036,7 +1034,7 @@ function openDrawer(id) {
 function resolveDetailSnapshot(config) {
   const { kind, id } = config;
   if (kind === 'agent') {
-    const a = AGENTS.find((x) => x.id === id)
+    const a = globalThis.AGENTS.find((x) => x.id === id)
       || globalThis.PanoramaProvider?.getAgentById?.(id);
     if (!a) return null;
     return {
@@ -1049,7 +1047,7 @@ function resolveDetailSnapshot(config) {
     };
   }
   if (kind === 'queue') {
-    const q = queueState.find((x) => x.id === id);
+    const q = globalThis.queueState.find((x) => x.id === id);
     if (!q) return null;
     return {
       kind: 'queue',
@@ -1082,7 +1080,7 @@ function resolveDetailSnapshot(config) {
 
 setDetailRecentResolver(resolveDetailSnapshot);
 function agentsInQueue(queueId) {
-  return AGENTS.filter((a) => (a.queues || []).includes(queueId));
+  return globalThis.AGENTS.filter((a) => (a.queues || []).includes(queueId));
 }
 function activeWorkInQueue(q, live) {
   const members = agentsInQueue(q.id);
@@ -1111,7 +1109,7 @@ function queuedWorkForQueue(list, queueId) {
 function queueWaitingWorkRowHTML(w, esc) {
   const channelKey = w.channelKey || 'cas';
   const label = w.subject || 'Work item';
-  const detail = CH_LBL[channelKey] || 'Work item';
+  const detail = globalThis.CH_LBL[channelKey] || 'Work item';
   const ageSec = Number(w.ageSec) || 0;
   return `<div class="queue-agent-row queue-waiting-row">
     <div class="assigned-queue-work-icon">${channelIconTileHtml(channelKey, { size: 24 })}</div>
@@ -1126,7 +1124,7 @@ function queueWaitingWorkListHTML(items, esc) {
 }
 
 function renderQueueDetail(config) {
-  const q = queueState.find((x) => x.id === config.id);
+  const q = globalThis.queueState.find((x) => x.id === config.id);
   if (!q) return null;
   const live = isLiveDataMode();
   const esc = detailEsc;
@@ -1139,7 +1137,7 @@ function renderQueueDetail(config) {
   const workItems = activeWorkInQueue(q, live);
   const memberRows = members.length
     ? members.map((a) => {
-      const st = STATUS[a.status] || STATUS.offline;
+      const st = globalThis.STATUS[a.status] || globalThis.STATUS.offline;
       return `<button type="button" class="queue-agent-row" data-agent-id="${esc(a.id)}">
         <div class="queue-agent-av">${agentAvatarHTML(a, 'ag-av')}<i class="ag-dot" style="background:${st.c}"></i></div>
         <div class="queue-agent-copy"><div class="queue-agent-name">${esc(a.name)}</div><div class="queue-agent-role">${esc(a.role)}</div></div>
@@ -1154,8 +1152,8 @@ function renderQueueDetail(config) {
       const channelKey = w.channelKey || 'cas';
       const label = live ? (w.label || 'Work item') : (w.t || 'Work item');
       const detail = live
-        ? (w.subject || CH_LBL[channelKey] || w.channel || 'Work item')
-        : (CH_LBL[channelKey] || 'Work item');
+        ? (w.subject || globalThis.CH_LBL[channelKey] || w.channel || 'Work item')
+        : (globalThis.CH_LBL[channelKey] || 'Work item');
       const age = live ? w.ageMin : item.ageMin;
       return `<button type="button" class="queue-agent-row" data-agent-id="${esc(a.id)}">
         <div class="assigned-queue-work-icon">${channelIconTileHtml(channelKey, { size: 24 })}</div>
@@ -1227,9 +1225,9 @@ registerDetailKind('agent', {
   render: renderAgentDetail,
 });
 registerDetailKind('queue', {
-  resolveLabel: (config) => queueState.find((q) => q.id === config.id)?.name || 'Queue',
+  resolveLabel: (config) => globalThis.queueState.find((q) => q.id === config.id)?.name || 'Queue',
   resolveTabIcon: (config) => {
-    const q = queueState.find((x) => x.id === config.id);
+    const q = globalThis.queueState.find((x) => x.id === config.id);
     return sfIconTileHtml('queue', { size: 18, bg: q?.name ? colorFromString(q.name) : undefined, className: 'sf-icon-tile ws-tab-icon-tile' });
   },
   render: renderQueueDetail,
@@ -1242,15 +1240,6 @@ registerDetailKind('skill', {
 initDetailDrawerChrome();
 
 /* ───────── Room — isometric workload map ───────── */
-function floorSeatLoads(f) {
-  const loads = [];
-  f.assigned.forEach(s => {
-    const a = s.agent;
-    if (!a || a.status === 'offline') return;
-    loads.push(a.max ? a.used / a.max : 0);
-  });
-  return loads;
-}
 function towerHeightForLoad(L, minH, maxH) {
   return L < 0.1 ? minH : minH + L * (maxH - minH);
 }
@@ -1279,13 +1268,13 @@ function towerDisplayHeight(a, minH, maxH) {
   return v != null ? v : towerTargetH(a, minH, maxH);
 }
 function syncTowerDisplayH(minH = 16, maxH = 88) {
-  AGENTS.forEach(a => {
+  globalThis.AGENTS.forEach(a => {
     if (!towerDisplayH.has(a.id)) towerDisplayH.set(a.id, towerTargetH(a, minH, maxH));
   });
 }
 function stepTowerDisplay(minH = 16, maxH = 88, dt = 16) {
   let dirty = false;
-  AGENTS.forEach(a => {
+  globalThis.AGENTS.forEach(a => {
     const target = towerTargetH(a, minH, maxH);
     const cur = towerDisplayH.get(a.id);
     const next = smoothToward(cur, target, dt);
@@ -1306,7 +1295,7 @@ function computeFloorStack(floors, opts) {
 }
 function getFixedFloorOffsets(dir, gMaxC, gMaxR, minH, maxH, TH) {
   if (fixedFloorLayout.dir === dir && fixedFloorLayout.offsets) return fixedFloorLayout.offsets;
-  const { offsets } = computeFloorLayout(FLOORS, dir, gMaxC, gMaxR, {
+  const { offsets } = computeFloorLayout(globalThis.FLOORS, dir, gMaxC, gMaxR, {
     minH, maxH, TH, beaconPad: 28, marginMin: 36, floorGapExtra: 80,
   });
   fixedFloorLayout.offsets = offsets;
@@ -1324,7 +1313,7 @@ function setBuildDir(d) {
   const canvas = root?.querySelector('.room-canvas');
   if (!canvas) {
     buildDir = d;
-    saveCustomRoomDir(buildDir, FLOORS);
+    saveCustomRoomDir(buildDir, globalThis.FLOORS);
     fixedFloorLayout.offsets = null;
     if (isView('operations')) {
       updateOverviewMetrics();
@@ -1345,7 +1334,7 @@ function setBuildDir(d) {
   canvas.style.opacity = '0.2';
   setTimeout(() => {
     buildDir = d;
-    saveCustomRoomDir(buildDir, FLOORS);
+    saveCustomRoomDir(buildDir, globalThis.FLOORS);
     fixedFloorLayout.offsets = null;
     const b = buildBuilding();
     canvas.innerHTML = buildingCanvasHTML(b);
@@ -1369,7 +1358,7 @@ function setBuildDir(d) {
 
 function buildBuilding(dir) {
   if (dir === undefined) dir = buildDir;
-  if (!FLOORS?.length) {
+  if (!globalThis.FLOORS?.length) {
     return {
       svg: '<svg viewBox="0 0 480 240" xmlns="http://www.w3.org/2000/svg"><text x="240" y="120" text-anchor="middle" fill="#9C98A6" font-size="14" font-family="Inter,sans-serif">Team map unavailable</text></svg>',
       occupied: 0,
@@ -1377,18 +1366,18 @@ function buildBuilding(dir) {
     };
   }
   const TH = 17, minH = 16, maxH = 88;
-  const { gMaxC, gMaxR } = gridExtents(FLOORS);
+  const { gMaxC, gMaxR } = gridExtents(globalThis.FLOORS);
   const floorOffsets = getFixedFloorOffsets(dir, gMaxC, gMaxR, minH, maxH, TH);
   let occupied = 0, hot = 0;
   const meta = { anchors: [] };
-  const svg = buildBuildingSVG(FLOORS, dir, {
+  const svg = buildBuildingSVG(globalThis.FLOORS, dir, {
     meta,
     floorOffsets,
     backgroundUrl,
     seatParts(s, ctx) {
       const a = s.agent; const { x, y, TW, TH } = ctx;
       if (!a) return { cube: ctx.vacantCircle(x, y) };
-      const T = TEAM_COLOR[teamOf(a)] || [140, 140, 150];
+      const T = globalThis.TEAM_COLOR[globalThis.teamOf(a)] || [140, 140, 150];
       if (a.status === 'offline') return { cube: ctx.wire(x, y, 10, 'rgba(27,25,36,.18)', a.id, false, a.flag ? ctx.mkBeacon(x, y, 10) : '') };
       const L = a.max ? a.used / a.max : 0; occupied++; if (L >= .8) hot++;
       const H = towerDisplayHeight(a, minH, maxH);
@@ -1410,7 +1399,7 @@ function attachSeats(root) {
     const tip = roomTipForCanvas(canvas);
     const g = e.target.closest('.seat[data-id]');
     if (!g) { tipSeatAgentId = null; hideRoomTip(tip); return; }
-    const a = AGENTS.find(x => x.id === g.dataset.id);
+    const a = globalThis.AGENTS.find(x => x.id === g.dataset.id);
     if (!a) { tipSeatAgentId = null; hideRoomTip(tip); return; }
     if (a.id !== tipSeatAgentId) { tip.innerHTML = agentMapTipHTML(a); tipSeatAgentId = a.id; }
     showRoomTip(tip, e.clientX, e.clientY);
@@ -1598,26 +1587,26 @@ const GlobalSearch = {
   },
 
   async ensureSearchAgents() {
-    if (!isLiveDataMode()) return AGENTS;
+    if (!isLiveDataMode()) return globalThis.AGENTS;
     if (this.searchAgents) return this.searchAgents;
     const provider = globalThis.PanoramaProvider;
-    if (!provider?.getAgents) return AGENTS;
+    if (!provider?.getAgents) return globalThis.AGENTS;
     const list = await provider.getAgents({ scope: 'all' });
     this.searchAgents = Array.isArray(list) ? list : [];
     return this.searchAgents;
   },
 
   searchAgentPool() {
-    if (!isLiveDataMode()) return AGENTS;
+    if (!isLiveDataMode()) return globalThis.AGENTS;
     const directory = this.searchAgents;
-    if (!directory?.length) return AGENTS;
+    if (!directory?.length) return globalThis.AGENTS;
     const byId = new Map(directory.map((a) => [a.id, a]));
-    for (const a of AGENTS) byId.set(a.id, a);
+    for (const a of globalThis.AGENTS) byId.set(a.id, a);
     return [...byId.values()];
   },
 
   async ensureSearchSkills() {
-    if (!isLiveDataMode()) return SKILLS;
+    if (!isLiveDataMode()) return globalThis.SKILLS;
     if (this.searchSkills) return this.searchSkills;
     const provider = globalThis.PanoramaProvider;
     if (!provider?.getSkills) return [];
@@ -1627,8 +1616,8 @@ const GlobalSearch = {
   },
 
   searchSkillPool() {
-    if (!isLiveDataMode()) return SKILLS;
-    return this.searchSkills?.length ? this.searchSkills : (SKILLS || []);
+    if (!isLiveDataMode()) return globalThis.SKILLS;
+    return this.searchSkills?.length ? this.searchSkills : (globalThis.SKILLS || []);
   },
 
   isOpen() { return this.open; },
@@ -1670,7 +1659,7 @@ const GlobalSearch = {
 
   collectWorkItems() {
     const items = [];
-    for (const agent of AGENTS) {
+    for (const agent of globalThis.AGENTS) {
       if (isLiveDataMode()) {
         if (!Array.isArray(agent.work)) continue;
         for (const w of agent.work) {
@@ -1678,7 +1667,7 @@ const GlobalSearch = {
             agentId: agent.id,
             agentName: agent.name,
             title: w.label || 'Work item',
-            meta: w.subject || w.queue || CH_LBL[w.channelKey] || '',
+            meta: w.subject || w.queue || globalThis.CH_LBL[w.channelKey] || '',
             channelKey: w.channelKey,
             searchText: [w.label, w.subject, w.recordId, w.queue, agent.name]
               .filter(Boolean)
@@ -1702,14 +1691,14 @@ const GlobalSearch = {
     return items;
   },
 
-  run(q, agentPool = AGENTS, skillPool = SKILLS) {
+  run(q, agentPool = globalThis.AGENTS, skillPool = globalThis.SKILLS) {
     if (!q) return { agents: [], queues: [], skills: [], workItems: [] };
     const agents = agentPool.filter(a =>
       a.name.toLowerCase().includes(q) ||
       (a.role || '').toLowerCase().includes(q) ||
-      teamOf(a).toLowerCase().includes(q)
+      globalThis.teamOf(a).toLowerCase().includes(q)
     ).slice(0, 8);
-    const queues = queueState.filter(qu => qu.name.toLowerCase().includes(q)).slice(0, 6);
+    const queues = globalThis.queueState.filter(qu => qu.name.toLowerCase().includes(q)).slice(0, 6);
     const skills = skillPool.filter(s =>
       s.name.toLowerCase().includes(q) ||
       (s.type || '').toLowerCase().includes(q)
@@ -1725,7 +1714,7 @@ const GlobalSearch = {
   },
 
   agentItem(a, idx) {
-    const st = STATUS[a.status];
+    const st = globalThis.STATUS[a.status];
     const av = agentAvatarHTML(a, 'si-av');
     return `<button type="button" class="qsearch-item${idx === this.activeIdx ? ' on' : ''}" role="option" data-kind="agent" data-id="${a.id}">
           ${av}

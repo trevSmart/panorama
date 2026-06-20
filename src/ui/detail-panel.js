@@ -32,7 +32,7 @@ function resolveDetailLabel(config) {
   return def.resolveLabel(config) || 'Detail';
 }
 
-export function resolveDetailTabIcon(config) {
+function resolveDetailTabIcon(config) {
   const def = kindDef(config);
   if (!def?.resolveTabIcon) return '';
   return def.resolveTabIcon(config) || '';
@@ -115,7 +115,7 @@ export function closeDetailDrawer() {
   drawerConfig = null;
 }
 
-export function maximizeDetailPanel(config) {
+function maximizeDetailPanel(config) {
   const label = resolveDetailLabel(config);
   devConsole.action('detail:maximize', config?.kind, config?.id ?? '');
   closeDetailDrawer();
@@ -125,7 +125,7 @@ export function maximizeDetailPanel(config) {
   });
 }
 
-export function mountDetailPanel(container, config) {
+function mountDetailPanel(container, config) {
   container.innerHTML = '<div class="view view-detail"><div class="detail-panel"></div></div>';
   const panel = container.querySelector('.detail-panel');
   if (panel) mountDetailSurface(panel, config, 'full');
@@ -139,7 +139,7 @@ function scrimEl() {
   return document.getElementById('scrim');
 }
 
-export function isDetailDrawerOpen() {
+function isDetailDrawerOpen() {
   return Boolean(drawerEl()?.classList.contains('show'));
 }
 

@@ -8,11 +8,11 @@
  * vacant dashed ellipses on the isometric floor (used by the floor editor preview).
  */
 
-export const shade = (c, f) => c.map(v => Math.round(v * f));
-export const tint = (c, k) => c.map(v => Math.round(v + (255 - v) * k));
+const shade = (c, f) => c.map(v => Math.round(v * f));
+const tint = (c, k) => c.map(v => Math.round(v + (255 - v) * k));
 export const rgbc = (c, o = 1) => `rgba(${c[0]},${c[1]},${c[2]},${o})`;
 
-export function isoDepthSum(c, r, dir, gMaxC, gMaxR) {
+function isoDepthSum(c, r, dir, gMaxC, gMaxR) {
   if (dir === 1) return c + r;
   if (dir === 2) return gMaxR - r + c;
   if (dir === 3) return r + gMaxC - c;
@@ -27,7 +27,7 @@ export function gridExtents(floors) {
 }
 
 export function computeFloorLayout(floors, dir, gMaxC, gMaxR, opts) {
-  const { minH, maxH, TH, beaconPad, marginMin, slabT = 0, floorGapExtra = 0 } = opts;
+  const { maxH, TH, beaconPad, marginMin, slabT = 0, floorGapExtra = 0 } = opts;
   const gaps = [];
   for (let i = 0; i < floors.length - 1; i++) {
     const upper = floors[i];

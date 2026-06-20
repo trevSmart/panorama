@@ -1,4 +1,4 @@
-export const DROPDOWN_TRANSITION_MS = 180;
+const DROPDOWN_TRANSITION_MS = 180;
 
 /**
  * Open/close animation shared by header dropdowns (search, tab catalog, user menu).

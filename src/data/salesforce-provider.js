@@ -47,7 +47,7 @@ export function buildSalesforceRecordUrl(instanceUrl, recordId) {
 /**
  * @param {{ runtimeConfig: import('../config.js').RuntimeConfig, getSession: () => Promise<import('../auth/salesforce-oauth.js').OAuthSession> }} options
  */
-export function createSalesforceProvider({ runtimeConfig, getSession }) {
+function createSalesforceProvider({ runtimeConfig, getSession }) {
   /** @type {import('./types.js').Agent[]} */
   let agents = [];
   /** @type {import('./types.js').Queue[]} */

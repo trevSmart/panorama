@@ -5,11 +5,20 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node scripts/free-port.js && node src/index.js",
-    "dev": "node scripts/free-port.js && PANORAMA_DEV=1 node --watch src/index.js",
-    "test": "node --test test/*.test.js"
+    "start": "node scripts/start-server.js",
+    "dev": "node scripts/start-server.js --dev",
+    "test": "node --test test/*.test.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "knip": "node scripts/knip-vscode.js"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.5.0",
+    "globals": "^17.6.0",
+    "knip": "^6.17.1"
+  }
 }

@@ -8,7 +8,7 @@
 
 // Grid directions toward the outside of a cell. O = Oest (West).
 export const EDGES = ['N', 'S', 'E', 'O'];
-export const KINDS = ['door', 'window'];
+const KINDS = ['door', 'window'];
 
 /** edge → neighbour coords */
 export const NEIGHBOR = {

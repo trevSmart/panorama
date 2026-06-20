@@ -77,12 +77,3 @@ export async function loadRuntimeConfig() {
 
   return cachedConfig;
 }
-
-/** @deprecated Use loadRuntimeConfig() */
-export function getConfig() {
-  const params = new URLSearchParams(globalThis.location?.search ?? '');
-  return {
-    dataSource: params.get('source') === 'mock' ? 'mock' : 'salesforce',
-    apiBaseUrl: params.get('api') || '/services/apexrest/panorama/v1',
-  };
-}

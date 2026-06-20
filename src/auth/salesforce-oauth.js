@@ -86,7 +86,7 @@ function isSessionValid(session) {
 /**
  * @param {{ sfClientId: string, sfLoginUrl: string, sfRedirectUri: string }} config
  */
-export function beginLogin(config) {
+function beginLogin(config) {
   devConsole.action('auth:login');
   const verifier = randomVerifier();
   const state = randomVerifier(32);
@@ -152,21 +152,35 @@ export async function handleOAuthCallback(config) {
 }
 
 async function requestTokenExchange(body) {
-  devConsole.api('POST', '/api/oauth/token');
-  const res = await fetch('/api/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = payload.error_description || payload.error || `Token exchange failed (${res.status})`;
-    const err = new Error(message);
-    err.status = res.status;
-    err.code = payload.error;
-    throw err;
+  const maxAttempts = 3;
+  let lastErr;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      devConsole.api('POST', '/api/oauth/token');
+      const res = await fetch('/api/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = payload.error_description || payload.error || `Token exchange failed (${res.status})`;
+        const err = new Error(message);
+        err.status = res.status;
+        err.code = payload.error;
+        throw err;
+      }
+      return payload;
+    } catch (err) {
+      lastErr = err;
+      const retryable = /fetch failed|failed to fetch|networkerror/i.test(err.message || '');
+      if (!retryable || attempt === maxAttempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+    }
   }
-  return payload;
+
+  throw lastErr;
 }
 
 function isRefreshAuthFailure(err) {

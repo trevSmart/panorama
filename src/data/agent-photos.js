@@ -25,7 +25,7 @@ export function revokeAgentPhotoBlobs() {
  * @param {string} [photo]
  * @param {string} [instanceUrl]
  */
-export function normalizePhotoUrl(photo, instanceUrl) {
+function normalizePhotoUrl(photo, instanceUrl) {
   if (!photo) return '';
   const trimmed = photo.trim();
   if (/^https?:\/\//i.test(trimmed)) return trimmed;

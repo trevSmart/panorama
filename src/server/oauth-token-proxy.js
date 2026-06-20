@@ -4,7 +4,7 @@ import { getPublicRuntimeConfig } from './load-env.js';
  * Server-side OAuth token exchange (avoids browser CORS on /services/oauth2/token).
  * @param {Record<string, string>} fields
  */
-export async function exchangeSalesforceToken(fields) {
+async function exchangeSalesforceToken(fields) {
   const { sfClientId, sfLoginUrl } = getPublicRuntimeConfig();
   if (!sfClientId) {
     throw new Error('SF_CLIENT_ID is not configured in .env');
@@ -37,7 +37,7 @@ export async function exchangeSalesforceToken(fields) {
  * @param {import('node:http').IncomingMessage} req
  * @returns {Promise<unknown>}
  */
-export function readJsonBody(req) {
+function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     req.on('data', (chunk) => chunks.push(chunk));

@@ -23,8 +23,8 @@ The goal is not a 1:1 copy: first we need to **replicate the minimum functionali
 | Area | Status |
 |------|--------|
 | UI / visual concept | Working prototype in `index.html` with mock data |
-| Salesforce integration | Not started |
-| Backend / APIs | None — static dev server only |
+| Salesforce integration | In progress — OAuth PKCE flow + Apex REST read endpoints |
+| Backend / APIs | Apex REST (`PanoramaApi` + services); Node dev server proxies OAuth token + agent photos |
 | AppExchange packaging | Not defined yet |
 
 ### UI prototype (`index.html`)
@@ -41,11 +41,12 @@ The prototype uses fictional data (`AGENTS`, `QUEUES`, `FLOORS`) and a real-time
 ### Local development
 
 ```bash
-npm start   # Node dev server (OAuth + Apex REST proxy) → http://localhost:3000
-npm run dev # same server with file watch + browser reload on save
+npm start   # Node dev server → http://localhost:3000
+npm run dev # same server with file watch + live browser reload on save
+npm test    # node --test over test/*.test.js
 ```
 
-`src/index.js` is only a static file server; there is no business logic or Salesforce calls.
+`src/index.js` serves the SPA statically and exposes a thin server layer only: `/api/config` (public runtime config), `/api/oauth/token` (OAuth token exchange proxy, to keep the flow CORS-safe and avoid leaking secrets to the browser), and `/api/salesforce/photo` (authenticated agent photo proxy). It holds **no business logic** — all domain data comes from Apex REST. The server reads its config from `.env` (see `src/server/load-env.js`).
 
 ## Functional goal (Omni Supervisor parity)
 
@@ -87,6 +88,12 @@ Rationale: validate the product with real data and full UI freedom (dense dashbo
 │  · UI knows domain models only — not Salesforce shapes  │
 └──────────────────────┬──────────────────────────────────┘
                        │ HTTPS + OAuth 2.0 PKCE (External Client App)
+┌──────────────────────▼──────────────────────────────────┐
+│  Node dev server (`src/index.js`, local only)           │
+│  · Serves SPA · /api/config · OAuth token + photo proxy │
+│  · No business logic — pass-through to Salesforce       │
+└──────────────────────┬──────────────────────────────────┘
+                       │
 ┌──────────────────────▼──────────────────────────────────┐
 │  Apex REST API (`force-app/`)                           │
 │  · Aggregates SOQL · Maps to Panorama domain JSON       │
@@ -155,35 +162,55 @@ This lets a later move to hybrid (add an `ActionBridge` provider) or full LWC (r
 - `PendingServiceRouting` — work pending routing
 - Platform Events related to Omni-Channel
 
-## Repository structure (planned)
+## Repository structure
 
 ```
 panorama/
 ├── AGENTS.md              ← this file
-├── index.html             ← UI (migrating to use src/data/ providers)
+├── index.html             ← SPA shell (loads ES modules from src/)
 ├── assets/                ← logos, images
 ├── src/
-│   ├── index.js           ← static dev server (local only)
-│   ├── config.js          ← dataSource: mock | salesforce
-│   ├── ui/
-│   │   └── sf-icons.js    ← SLDS icon paths + HTML helpers
-│   └── data/
-│       ├── types.js       ← domain models
-│       ├── provider.js    ← DataProvider factory + contract
-│       ├── mock-provider.js
-│       └── salesforce-provider.js
-├── force-app/             ← Salesforce DX (API layer only in phase 1)
+│   ├── index.js           ← Node dev server (static + thin proxy, local only)
+│   ├── config.js          ← runtime config + dataSource: mock | salesforce
+│   ├── app-main.js        ← app bootstrap / entry
+│   ├── workspace-shell.js ← workspace tabs + page shell
+│   ├── workspace-state.js ← active workspace / view state
+│   ├── floor-editor.js    ← isometric team-map editor
+│   ├── building-render.js ← team-map / floor rendering
+│   ├── auth/              ← OAuth PKCE: salesforce-oauth.js, session storage
+│   ├── server/           ← dev-server helpers: env loader, OAuth + photo proxy
+│   ├── settings/         ← user preferences
+│   ├── dev/              ← in-app dev console (API log panel)
+│   ├── ui/               ← view widgets: sf-icons, detail-panel, selects,
+│   │                       dropdowns, duration, reconcile-grid, rotate-icons
+│   └── data/             ← domain layer
+│       ├── types.js           ← domain models
+│       ├── provider.js        ← DataProvider factory + contract
+│       ├── mock-provider.js   ← simulator
+│       ├── salesforce-provider.js ← Apex REST client
+│       ├── normalize.js       ← shape normalization
+│       ├── mode.js            ← mock vs salesforce mode
+│       └── floor-store.js, agent-photos.js, channel-labels.js, …
+├── force-app/             ← Salesforce DX (API layer + Omni metadata)
 │   └── main/default/
-│       ├── classes/       ← Panorama REST controllers + services
-│       └── permissionsets/
+│       ├── classes/              ← PanoramaApi + Agent/Queue/Skill/Work services
+│       ├── permissionsets/       ← Panorama_Agent, Panorama_External_User
+│       ├── queues/               ← Omni queues
+│       ├── servicePresenceStatuses/, serviceChannels/,
+│       ├── presenceUserConfigs/, queueRoutingConfigs/  ← Omni routing setup
+│       └── profiles/
+├── scripts/               ← dev tooling (e.g. free-port.js)
+├── test/                  ← node:test unit tests (*.test.js)
 └── docs/
+    ├── PENDING-TASKS.md                            ← Omni Supervisor parity backlog
     ├── salesforce-lightning-design-system-icons/  ← SLDS standard + utility icons
-    └── (future) Omni feature ↔ API mapping
+    └── ui-inspiration/                             ← design references
 ```
 
 ## Development conventions
 
 - **Language:** English everywhere (see Language section above)
+- **Lint errors:** fix the underlying code, never the linter. Do **not** edit the ESLint config (`eslint.config.js`) — add globals, disable rules, widen `ignores`, or add `eslint-disable` comments — just to make an error disappear. An ESLint error is a real defect (e.g. an implicit global is a latent runtime bug); resolve it in the code. Config changes are only acceptable when they reflect a genuine, intentional project fact (e.g. a real third-party global like `THREE`), not as a way to silence a problem.
 - **Minimal changes:** do not refactor outside the scope of the task
 - **Prototype vs production:** do not mix mock data with real API calls; mark the transition clearly
 - **Security:** respect Omni Supervisor permissions (`Manage Queue Membership`, `View Agent Queue Stats`, etc.)
@@ -201,14 +228,31 @@ panorama/
 | User / Agent | `user.svg` |
 | Work item (generic) | `work_order.svg` |
 
+## Apex REST surface (current)
+
+`PanoramaApi` (`@RestResource urlMapping='/panorama/v1/*'`) routes read endpoints to per-domain services. Live today:
+
+| Endpoint | Service | Returns |
+|----------|---------|---------|
+| `GET /agents` | `PanoramaAgentService` | Agents with status, capacity, channels, queues, work, skills |
+| `GET /agents/:id/skills` | `PanoramaAgentService` | Skills assigned to an agent |
+| `GET /queues` | `PanoramaQueueService` | Queues with backlog / wait metrics |
+| `GET /skills` | `PanoramaSkillService` | Skill catalog |
+| `GET /skills/:id/agents` | `PanoramaSkillService` | Agents qualified for a skill |
+| `GET /work` | `PanoramaWorkService` | Work items |
+
+`PanoramaGroupMembership` backs queue-membership reads. Write actions (presence, reassign, queue/skill changes) are not yet exposed. See [docs/PENDING-TASKS.md](docs/PENDING-TASKS.md) for the full parity backlog.
+
 ## Next steps
 
 1. ~~Extract mock data~~ → done (`src/data/`)
-2. ~~Scaffold Apex REST~~ → done (`PanoramaApi`, agents + queues)
-3. Wire Operations view to provider refresh (real data re-render)
-4. **External Client App** in org + `src/auth/` PKCE flow + Bearer token in `salesforce-provider.js`
-5. Permission Set for Panorama supervisors (ECA App Policies)
-6. Later: action audit, AppExchange / hybrid / LWC
+2. ~~Scaffold Apex REST~~ → done (`PanoramaApi` + agents, queues, skills, work services)
+3. ~~Wire views to provider refresh~~ → done (`salesforce-provider.js` polls agents/queues/skills/work; `subscribe()` re-renders)
+4. ~~`src/auth/` PKCE flow + token proxy~~ → done; remaining: provision the **External Client App** in the org and finish CORS / App Policies setup
+5. Permission Sets for Panorama supervisors (`Panorama_Agent`, `Panorama_External_User` exist; align with ECA App Policies)
+6. Write endpoints + capability flags (presence, reassign, queue/skill changes)
+7. Migrate UI copy from Catalan to English
+8. Later: action audit, AppExchange / hybrid / LWC
 
 ## Useful references
 

@@ -503,6 +503,10 @@ function mountEditor(container) {
     return rows.length;
   }
 
+  // Active floor drag-and-drop session, shared by the pointer handlers below.
+  // null when no drag is in progress.
+  let floorDrag = null;
+
   function clearFloorDropMarks() {
     listEl.querySelectorAll('.fe-floor-drop-before, .fe-floor-dragging').forEach((el) => {
       el.classList.remove('fe-floor-drop-before', 'fe-floor-dragging');
