@@ -18,6 +18,7 @@ import {
   registerDetailPanelType,
 } from './ui/detail-panel.js';
 import { syncDropdownPanel } from './ui/dropdown-panel.js';
+import { openSkillEditor } from './ui/skill-edit.js';
 import { enhanceAllSelects, syncCustomSelect } from './ui/custom-select.js';
 import { devConsole } from './dev/dev-console.js';
 import { consolePanel } from './dev/console-panel.js';
@@ -934,9 +935,17 @@ function renderAgentDetail(config) {
   const salesforceLink = a.recordUrl
     ? `<a class="dr-action-link" href="${esc(a.recordUrl)}" target="_blank" rel="noopener noreferrer" aria-label="View ${esc(a.name)} in Salesforce">View in Salesforce</a>`
     : '';
+  const caps = globalThis.PanoramaProvider?.capabilities || {};
+  const skillsBtn = caps.canChangeSkills
+    ? `<button class="js-edit-skills" data-agent="${esc(a.id)}">✦ Canviar skills</button>`
+    : '';
+  // Reassign / queues / flag have no backend path yet → mock-only.
+  const mockActions = live
+    ? ''
+    : `<button class="primary">⚑ Atendre bandera</button><button>↪ Reassignar</button><button>≋ Canviar cues</button>`;
   const drawerActions = live
-    ? salesforceLink
-    : `${salesforceLink}<button class="primary">⚑ Atendre bandera</button><button>↪ Reassignar</button><button>≋ Canviar cues</button><button>✦ Canviar skills</button>`;
+    ? `${salesforceLink}${skillsBtn}`
+    : `${salesforceLink}${mockActions}<button class="js-edit-skills" data-agent="${esc(a.id)}">✦ Canviar skills</button>`;
   const timelineSection = live
     ? ''
     : `<section><h4>Timeline — últimes 3 h</h4>
@@ -970,6 +979,16 @@ function renderAgentDetail(config) {
       ${timelineSection}
       ${workSection}`,
     afterMount(root, cfg) {
+      // Bind the skills editor first — the button exists whenever the drawer
+      // renders, independent of how skills load. (With Salesforce data, skills
+      // are embedded on the agent and the skill-list branch returns early, so
+      // binding after it would never run in live mode.)
+      const editBtn = root.querySelector('.js-edit-skills');
+      if (editBtn) {
+        editBtn.onclick = () => openSkillEditor(editBtn.dataset.agent, {
+          onSaved: () => openDrawer(editBtn.dataset.agent), // re-render drawer with fresh skills
+        });
+      }
       const list = root.querySelector('#agentSkillList');
       if (!list) return;
       const token = ++agentSkillsToken;

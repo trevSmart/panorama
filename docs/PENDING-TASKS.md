@@ -44,6 +44,11 @@ Native Omni Supervisor has **All Agents** and **Agents by Queue** views, plus ag
 - [ ] **Change presence status** (Action column) — force status while agent is not offline
   - Likely: Omni Supervisor presence API / `UserServicePresence` update
   - Panorama: `[ ]` capability flag exists; not wired
+  - ⚠️ **Verified not viable from backend (2026-06-19):** `UserServicePresence` is not
+    insertable. `sforce.console.presence.setServicePresenceStatus` is Console JS
+    (Integration Toolkit) — runs in-browser inside a Salesforce Console and sets the
+    agent's **own** presence, not a third party's from an external app. No supported
+    Apex/REST path to force another agent's presence.
 
 - [ ] **Work summary** — assigned + open work popover per agent
   - Likely: `AgentWork` by `UserId`
@@ -126,9 +131,13 @@ Native Omni Supervisor has **All Agents** and **Agents by Queue** views, plus ag
   - Permissions: Manage Queue Memberships
   - Panorama: `[ ]`
 
-- [ ] **Change Skills** — bulk update skills for selected agents
+- [~] **Change Skills** — bulk update skills for selected agents
   - Permissions: Service Resource / ServiceResourceSkill edit
-  - Panorama: `[ ]`
+  - Panorama: `[~]` In progress (2026-06-19) — single-agent skill edit via DML on
+    `ServiceResourceSkill` (verified create/update/delete all = true). Capability derived
+    from real user permissions. See spec
+    `docs/superpowers/specs/2026-06-19-editar-skills-capabilities-design.md`. Bulk /
+    multi-select deferred.
 
 ---
 
@@ -365,12 +374,36 @@ Tasks to support the UI parity above through Apex REST + `salesforce-provider.js
 
 ### 10.2 Write endpoints (Phase 1+ / hybrid)
 
+- [ ] `GET /capabilities` — derive write capabilities from connected supervisor's object
+  CRUD permissions. In progress (2026-06-19, skills only). See
+  `docs/superpowers/specs/2026-06-19-editar-skills-capabilities-design.md`.
 - [ ] `PATCH /agents/:id/presence` — change presence status
+  - ❌ **Not viable from backend (verified 2026-06-19):** `UserServicePresence` not
+    insertable; no supported Apex/REST to set another agent's presence (see §1.1).
 - [ ] `PUT /agents/queues` — change queue membership (bulk)
-- [ ] `PUT /agents/skills` — change skills (bulk)
+  - `GroupMember` verified create+delete (no update). Viable via DML; deferred this round.
+- [~] `PUT /agents/:id/skills` — change skills for one agent
+  - In progress (2026-06-19). `ServiceResourceSkill` verified create+update+delete = true.
 - [ ] `POST /work/reassign` — reassign work items
+  - ❌ **Not viable from backend (verified 2026-06-19):** all relevant `AgentWork` fields
+    (`UserId`, `Status`, `PendingServiceRoutingId`, `OriginalQueueId`,
+    `ServiceChannelId`) are `updateable = false`; no Omni supervisor Apex class exists in
+    the org.
 - [ ] `POST /work/transfer-skills` — transfer to skill set
 - [ ] `POST /flags/:id/lower` — lower agent flag
+
+**Verified org capabilities (2026-06-19)** — via `Schema.getGlobalDescribe()` on the
+connected org:
+
+| Object | create | update | delete | Note |
+|---|---|---|---|---|
+| `ServiceResourceSkill` | ✅ | ✅ | ✅ | skill edit viable |
+| `GroupMember` | ✅ | ❌ | ✅ | queue membership viable (no update) |
+| `AgentWork` | ✅ | obj=✅ | ✅ | all reassign-relevant **fields** not updateable |
+| `UserServicePresence` | ❌ | ✅ | ✅ | not insertable → no force-presence |
+| `ServicePresenceStatus` | ❌ | ❌ | ❌ | read-only catalog |
+| `ServiceResource` | ✅ | ✅ | ❌ | — |
+| `Skill` | ❌ | ❌ | ❌ | read-only catalog |
 
 ### 10.3 Frontend integration
 

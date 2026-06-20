@@ -125,6 +125,82 @@ public with sharing class PanoramaSkillService {
         return countAgents(assignments);
     }
 
+    public class SkillChange {
+        public Id skillId;
+        public Double level;
+        public Boolean remove = false;
+    }
+
+    public class SkillDiff {
+        public List<ServiceResourceSkill> toInsert = new List<ServiceResourceSkill>();
+        public List<ServiceResourceSkill> toUpdate = new List<ServiceResourceSkill>();
+        public List<ServiceResourceSkill> toDelete = new List<ServiceResourceSkill>();
+    }
+
+    public class PanoramaSkillException extends Exception {}
+
+    /**
+     * Pure diff between an agent's current ServiceResourceSkill rows and the
+     * desired set of changes. No SOQL/DML so it stays unit-testable without
+     * inserting Skill (which is not insertable).
+     */
+    @TestVisible
+    private static SkillDiff diffSkills(
+        List<ServiceResourceSkill> current, List<SkillChange> desired, Id resourceId
+    ) {
+        Map<Id, ServiceResourceSkill> currentBySkill = new Map<Id, ServiceResourceSkill>();
+        for (ServiceResourceSkill srs : current) {
+            if (srs.SkillId != null) {
+                currentBySkill.put(srs.SkillId, srs);
+            }
+        }
+        SkillDiff diff = new SkillDiff();
+        for (SkillChange ch : desired) {
+            if (ch.skillId == null) { continue; }
+            ServiceResourceSkill existing = currentBySkill.get(ch.skillId);
+            if (ch.remove == true) {
+                if (existing != null) { diff.toDelete.add(existing); }
+                continue;
+            }
+            if (existing == null) {
+                diff.toInsert.add(new ServiceResourceSkill(
+                    ServiceResourceId = resourceId, SkillId = ch.skillId, SkillLevel = ch.level));
+            } else if (ch.level != null && ch.level != existing.SkillLevel) {
+                existing.SkillLevel = ch.level;
+                diff.toUpdate.add(existing);
+            }
+        }
+        return diff;
+    }
+
+    /**
+     * Apply skill changes for an agent. Resolves the ServiceResource from the
+     * User, computes the diff against current assignments, CRUD-checks, and runs
+     * the DML. Throws AuraHandledException-style message via PanoramaSkillException
+     * if the running user lacks permission.
+     */
+    public static void updateAgentSkills(Id userId, List<SkillChange> changes) {
+        Schema.DescribeSObjectResult d = Schema.sObjectType.ServiceResourceSkill;
+        if (!(d.isCreateable() && d.isUpdateable() && d.isDeletable())) {
+            throw new PanoramaSkillException('Insufficient permissions to edit skills');
+        }
+        List<ServiceResource> resources = [
+            SELECT Id FROM ServiceResource WHERE RelatedRecordId = :userId LIMIT 1
+        ];
+        if (resources.isEmpty()) {
+            throw new PanoramaSkillException('No ServiceResource found for user ' + userId);
+        }
+        Id resourceId = resources[0].Id;
+        List<ServiceResourceSkill> current = [
+            SELECT Id, SkillId, SkillLevel FROM ServiceResourceSkill
+            WHERE ServiceResourceId = :resourceId LIMIT 10000
+        ];
+        SkillDiff diff = diffSkills(current, changes, resourceId);
+        if (!diff.toInsert.isEmpty()) { insert diff.toInsert; }
+        if (!diff.toUpdate.isEmpty()) { update diff.toUpdate; }
+        if (!diff.toDelete.isEmpty()) { delete diff.toDelete; }
+    }
+
     /**
      * Fold resource→skill assignments into per-skill distinct-resource counts.
      * Pure over its input (no SOQL) so it stays unit-testable.
