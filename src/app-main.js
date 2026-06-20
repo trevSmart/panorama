@@ -606,11 +606,70 @@ function queuePressure(q) {
   const cap = q.online * 5 || 1;
   return Math.min(1, (q.backlog || 0) / cap);
 }
-function queueDirectoryGridHTML(list, filter) {
+// Full queue card for the Queues page. Mirrors the queue drawer section order
+// (health → waiting → active work → agents) so the page and the side panel stay
+// coherent. The header opens the queue drawer; agent/work rows open the agent.
+function queueDirectoryCard(q, waitingItems, esc) {
+  const live = isLiveDataMode();
+  const cap = q.online * 5 || 1;
+  const pressure = Math.min(1, (q.backlog || 0) / cap);
+  const members = sortedQueueMembers(q.id);
+  const workItems = activeWorkInQueue(q, live);
+  const waiting = waitingItems || [];
+  return `<div class="qdir-card" data-id="${esc(q.id)}">
+    <div class="qdir-head" data-id="${esc(q.id)}" role="button" tabindex="0">
+      <span class="qn" style="color:${colorFromString(q.name)}">${sfIconTileHtml('queue', { size: 22, bg: colorFromString(q.name) })}${esc(q.name)}</span>
+      <span class="qa"><i></i><b class="mono">${q.online}</b> online</span>
+    </div>
+    <div class="pressure"><span style="width:${Math.max(6, pressure * 100)}%;background:${pColor(pressure)}"></span></div>
+    <div class="qmetrics">
+      <div class="m"><div class="v ${q.backlog > 8 ? 'warn' : ''}">${q.backlog}</div><div class="k">Backlog</div></div>
+      <div class="m"><div class="v ${q.longest > 150 ? 'warn' : ''}">${formatDurationSec(q.longest, { short: true })}</div><div class="k">Espera màx</div></div>
+      <div class="m"><div class="v">${formatDurationSec(q.avg, { short: true })}</div><div class="k">Espera mitj.</div></div>
+    </div>
+    <section><h4>En espera (${waiting.length})</h4><div class="queue-agent-list">${queueWaitingWorkListHTML(waiting, esc)}</div></section>
+    <section><h4>Feina activa (${workItems.length})</h4><div class="queue-agent-list">${queueActiveWorkRowsHTML(workItems, live, esc)}</div></section>
+    <section><h4>Agents assignats (${members.length})</h4><div class="queue-agent-list">${queueMemberRowsHTML(members, esc)}</div></section>
+  </div>`;
+}
+
+function queueDirectoryGridHTML(list, filter, waitingByQueue) {
   const filtered = (list || []).filter((q) => queueMatchesFilter(q, filter));
   if (!filtered.length) return '<p style="color:var(--faint)">Cap cua coincideix.</p>';
   const sorted = filtered.slice().sort((a, b) => queuePressure(b) - queuePressure(a) || a.name.localeCompare(b.name));
-  return sorted.map(queueCard).join('');
+  return sorted.map((q) => queueDirectoryCard(q, (waitingByQueue && waitingByQueue[q.id]) || [], detailEsc)).join('');
+}
+
+// Wire the Queues page grid: header opens the queue drawer, agent/work rows open
+// the agent. Idempotent via a dataset guard like attachQueueCardClicks.
+function attachQueueDirectoryClicks(grid) {
+  if (grid.dataset.qdirClicks) return;
+  grid.dataset.qdirClicks = '1';
+  grid.addEventListener('click', (e) => {
+    const agentRow = e.target.closest('[data-agent-id]');
+    if (agentRow && grid.contains(agentRow)) { openDrawer(agentRow.dataset.agentId); return; }
+    const head = e.target.closest('.qdir-head[data-id]');
+    if (head && grid.contains(head)) openQueueDrawer(head.dataset.id);
+  });
+  grid.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const head = e.target.closest('.qdir-head[data-id]');
+    if (!head || !grid.contains(head)) return;
+    e.preventDefault();
+    openQueueDrawer(head.dataset.id);
+  });
+}
+
+// Group queued (waiting) work items by queue id for the Queues page.
+function waitingWorkByQueue(allWork) {
+  const map = {};
+  (allWork || []).forEach((w) => {
+    if (w.status !== 'queued' || !w.queueId) return;
+    (map[w.queueId] ||= []).push(w);
+  });
+  Object.values(map).forEach((items) =>
+    items.sort((a, b) => (Number(b.ageSec) || 0) - (Number(a.ageSec) || 0)));
+  return map;
 }
 function queueFiltersHTML() {
   return QUEUE_FILTERS.map((f) =>
@@ -623,25 +682,27 @@ async function renderQueuesDirectory(container) {
   container.innerHTML = `<div class="view">
     <div class="view-head"><h2>Queues</h2><p>Totes les cues d'Omni-Channel i la seva pressió actual.</p></div>
     <div class="chips" id="queuesFilters">${queueFiltersHTML()}</div>
-    <div class="qgrid" id="queuesDirGrid"><p style="color:var(--faint)">Carregant cues…</p></div>
+    <div class="qgrid qdir-grid" id="queuesDirGrid"><p style="color:var(--faint)">Carregant cues…</p></div>
   </div>`;
   const grid = container.querySelector('#queuesDirGrid');
   const filters = container.querySelector('#queuesFilters');
   try {
     const provider = globalThis.PanoramaProvider;
-    const list = provider?.getQueues
-      ? await provider.getQueues()
-      : (globalThis.queueState || []);
+    const [list, allWork] = await Promise.all([
+      provider?.getQueues ? provider.getQueues() : (globalThis.queueState || []),
+      Promise.resolve(provider?.getWork?.() ?? []),
+    ]);
     if (token !== queueDirectoryToken) return; // un render més nou l'ha substituït
-    grid.innerHTML = queueDirectoryGridHTML(list || [], queueFilter);
-    attachQueueCardClicks(grid);
+    const waitingByQueue = waitingWorkByQueue(allWork);
+    grid.innerHTML = queueDirectoryGridHTML(list || [], queueFilter, waitingByQueue);
+    attachQueueDirectoryClicks(grid);
     filters.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-st]');
       if (!btn) return;
       queueFilter = btn.dataset.st;
       filters.querySelectorAll('[data-st]').forEach((b) => b.classList.toggle('on', b.dataset.st === queueFilter));
-      grid.innerHTML = queueDirectoryGridHTML(list || [], queueFilter);
-      attachQueueCardClicks(grid);
+      grid.innerHTML = queueDirectoryGridHTML(list || [], queueFilter, waitingByQueue);
+      attachQueueDirectoryClicks(grid);
     });
   } catch (err) {
     if (token !== queueDirectoryToken) return;
@@ -1142,6 +1203,45 @@ function queueWaitingWorkListHTML(items, esc) {
   return items.map((w) => queueWaitingWorkRowHTML(w, esc)).join('');
 }
 
+// Sorted online→offline then alphabetical; shared by the queue drawer and the
+// Queues page so both render assigned agents identically.
+function sortedQueueMembers(queueId) {
+  const order = { online: 0, busy: 1, away: 2, offline: 3 };
+  return agentsInQueue(queueId).slice().sort((a, b) =>
+    (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.name.localeCompare(b.name));
+}
+
+function queueMemberRowsHTML(members, esc) {
+  if (!members.length) return '<div class="assigned-queue-empty">No agents assigned to this queue</div>';
+  return members.map((a) => {
+    const st = globalThis.STATUS[a.status] || globalThis.STATUS.offline;
+    return `<button type="button" class="queue-agent-row" data-agent-id="${esc(a.id)}">
+      <div class="queue-agent-av">${agentAvatarHTML(a, 'ag-av')}<i class="ag-dot" style="background:${st.c}"></i></div>
+      <div class="queue-agent-copy"><div class="queue-agent-name">${esc(a.name)}</div><div class="queue-agent-role">${esc(a.role)}</div></div>
+      <span class="status-pill" style="color:${st.c};background:color-mix(in srgb,${st.c} 12%,transparent)"><i style="background:${st.c}"></i>${st.lbl}</span>
+    </button>`;
+  }).join('');
+}
+
+function queueActiveWorkRowsHTML(workItems, live, esc) {
+  if (!workItems.length) return '<div class="assigned-queue-empty">No active work in this queue</div>';
+  return workItems.map((item) => {
+    const w = live ? item : item.work;
+    const a = item.agent;
+    const channelKey = w.channelKey || 'cas';
+    const label = live ? (w.label || 'Work item') : (w.t || 'Work item');
+    const detail = live
+      ? (w.subject || globalThis.CH_LBL[channelKey] || w.channel || 'Work item')
+      : (globalThis.CH_LBL[channelKey] || 'Work item');
+    const age = live ? w.ageMin : item.ageMin;
+    return `<button type="button" class="queue-agent-row" data-agent-id="${esc(a.id)}">
+      <div class="assigned-queue-work-icon">${channelIconTileHtml(channelKey, { size: 24 })}</div>
+      <div class="queue-agent-copy"><div class="queue-agent-name">${esc(label)}</div><div class="queue-agent-role">${esc(a.name)} · ${esc(detail)}</div></div>
+      ${age == null ? '' : `<span class="assigned-queue-work-age mono">${formatDurationMin(age)}</span>`}
+    </button>`;
+  }).join('');
+}
+
 function renderQueueDetail(config) {
   const q = globalThis.queueState.find((x) => x.id === config.id);
   if (!q) return null;
@@ -1149,38 +1249,10 @@ function renderQueueDetail(config) {
   const esc = detailEsc;
   const cap = q.online * 5 || 1;
   const pressure = Math.min(1, q.backlog / cap);
-  const members = agentsInQueue(q.id).slice().sort((a, b) => {
-    const order = { online: 0, busy: 1, away: 2, offline: 3 };
-    return (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.name.localeCompare(b.name);
-  });
+  const members = sortedQueueMembers(q.id);
   const workItems = activeWorkInQueue(q, live);
-  const memberRows = members.length
-    ? members.map((a) => {
-      const st = globalThis.STATUS[a.status] || globalThis.STATUS.offline;
-      return `<button type="button" class="queue-agent-row" data-agent-id="${esc(a.id)}">
-        <div class="queue-agent-av">${agentAvatarHTML(a, 'ag-av')}<i class="ag-dot" style="background:${st.c}"></i></div>
-        <div class="queue-agent-copy"><div class="queue-agent-name">${esc(a.name)}</div><div class="queue-agent-role">${esc(a.role)}</div></div>
-        <span class="status-pill" style="color:${st.c};background:color-mix(in srgb,${st.c} 12%,transparent)"><i style="background:${st.c}"></i>${st.lbl}</span>
-      </button>`;
-    }).join('')
-    : '<div class="assigned-queue-empty">No agents assigned to this queue</div>';
-  const workRows = workItems.length
-    ? workItems.map((item) => {
-      const w = live ? item : item.work;
-      const a = item.agent;
-      const channelKey = w.channelKey || 'cas';
-      const label = live ? (w.label || 'Work item') : (w.t || 'Work item');
-      const detail = live
-        ? (w.subject || globalThis.CH_LBL[channelKey] || w.channel || 'Work item')
-        : (globalThis.CH_LBL[channelKey] || 'Work item');
-      const age = live ? w.ageMin : item.ageMin;
-      return `<button type="button" class="queue-agent-row" data-agent-id="${esc(a.id)}">
-        <div class="assigned-queue-work-icon">${channelIconTileHtml(channelKey, { size: 24 })}</div>
-        <div class="queue-agent-copy"><div class="queue-agent-name">${esc(label)}</div><div class="queue-agent-role">${esc(a.name)} · ${esc(detail)}</div></div>
-        ${age == null ? '' : `<span class="assigned-queue-work-age mono">${formatDurationMin(age)}</span>`}
-      </button>`;
-    }).join('')
-    : '<div class="assigned-queue-empty">No active work in this queue</div>';
+  const memberRows = queueMemberRowsHTML(members, esc);
+  const workRows = queueActiveWorkRowsHTML(workItems, live, esc);
 
   return {
     head: `<div class="dr-id">${sfIconTileHtml('queue', { size: 58, bg: colorFromString(q.name) })}
@@ -1197,9 +1269,9 @@ function renderQueueDetail(config) {
           <div class="s"><div class="v">${q.online}</div><div class="k">Online agents</div></div>
         </div>
       </section>
-      <section><h4>Assigned agents (${members.length})</h4><div class="queue-agent-list">${memberRows}</div></section>
       <section><h4>Waiting in queue (<span id="queueWaitingCount">${q.backlog}</span>)</h4><div class="queue-agent-list" id="queueWaitingList"><div class="assigned-queue-empty">Loading…</div></div></section>
-      <section><h4>Active work (${workItems.length})</h4><div class="queue-agent-list">${workRows}</div></section>`,
+      <section><h4>Active work (${workItems.length})</h4><div class="queue-agent-list">${workRows}</div></section>
+      <section><h4>Assigned agents (${members.length})</h4><div class="queue-agent-list">${memberRows}</div></section>`,
     afterMount(root, cfg, ctx) {
       root.querySelectorAll('[data-agent-id]').forEach((el) => {
         el.addEventListener('click', () => ctx.openAgent(el.dataset.agentId));
