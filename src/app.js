@@ -1,4 +1,4 @@
-import { handleOAuthCallback, ensureAuthenticated, beginLogin, isOAuthCallbackPath, getOAuthCallbackError, getOAuthSession, logout, initOAuthSessionStorage } from './auth/salesforce-oauth.js';
+import { handleOAuthCallback, ensureAuthenticated, isOAuthCallbackPath, getOAuthCallbackError, getOAuthSession, logout, initOAuthSessionStorage } from './auth/salesforce-oauth.js';
 import { buildPhotoProxyParams } from './data/agent-photos.js';
 import { installDataLayer, loadAppConfig } from './install-data.js';
 import { syncDropdownPanel } from './ui/dropdown-panel.js';
@@ -13,9 +13,14 @@ function showBodyMessage(title, message, hint = '') {
 }
 
 function showOAuthError(message) {
-  const hint = message.includes('admin approved') || message.includes('OAUTH_APP_ACCESS_DENIED')
-    ? `\n\nFix in Salesforce Setup:\n1. External Client App → Panorama → Policies\n2. OAuth Policies → Permitted Users → "Admin approved users are pre-authorized"\n3. App Policies → add Permission Set "Panorama External User"\n4. Setup → Permission Sets → Panorama External User → Assign to your user`
-    : '\n\nCheck ECA callback URL, CORS, and Permission Set policies.';
+  let hint;
+  if (/fetch failed|failed to fetch|network/i.test(message)) {
+    hint = '\n\nMake sure the dev server is running (npm run dev), then open http://localhost:3000 and sign in again.';
+  } else if (message.includes('admin approved') || message.includes('OAUTH_APP_ACCESS_DENIED')) {
+    hint = `\n\nFix in Salesforce Setup:\n1. External Client App → Panorama → Policies\n2. OAuth Policies → Permitted Users → "Admin approved users are pre-authorized"\n3. App Policies → add Permission Set "Panorama External User"\n4. Setup → Permission Sets → Panorama External User → Assign to your user`;
+  } else {
+    hint = '\n\nCheck ECA callback URL, CORS, and Permission Set policies.';
+  }
   showBodyMessage('OAuth failed', message, hint);
 }
 
@@ -23,8 +28,11 @@ await initOAuthSessionStorage();
 const runtimeConfig = await loadAppConfig();
 
 if (isOAuthCallbackPath()) {
+  const callbackParams = new URLSearchParams(globalThis.location.search);
   const oauthError = getOAuthCallbackError();
-  if (oauthError) {
+  if (!oauthError && !callbackParams.has('code') && !callbackParams.has('error')) {
+    globalThis.location.replace('/');
+  } else if (oauthError) {
     showOAuthError(oauthError);
   } else {
     try {
@@ -32,10 +40,9 @@ if (isOAuthCallbackPath()) {
       globalThis.location.replace('/');
     } catch (err) {
       console.error('[Panorama] OAuth callback failed', err);
-      if (/mismatched state|missing.*state/i.test(err.message || '')) {
+      if (/mismatched state|missing.*state|missing or mismatched/i.test(err.message || '')) {
         logout();
-        console.info('[Panorama] Restarting OAuth login after stale callback.');
-        await beginLogin(runtimeConfig);
+        globalThis.location.replace('/');
       } else {
         showOAuthError(err.message);
       }

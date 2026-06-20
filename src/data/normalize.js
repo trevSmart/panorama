@@ -28,7 +28,7 @@ export function normalizeAgent(agent) {
  * Maps an Apex work item DTO to the UI shape used by the agent drawer.
  * @param {object} item
  */
-export function normalizeWorkItem(item) {
+function normalizeWorkItem(item) {
   return {
     id: item.id,
     recordId: item.recordId || null,

@@ -35,7 +35,7 @@ function floorPrimera() {
 }
 
 /** Built-in default: one place with two sample floors. */
-export function defaultPlaces() {
+function defaultPlaces() {
   return [{ id: 'default', name: 'Lloc 1', floors: [floorBaixa(), floorPrimera()] }];
 }
 
@@ -45,7 +45,7 @@ export function basePlaces() {
 }
 
 /** Floors of the active place — used by the team map. */
-export function baseFloors() {
+function baseFloors() {
   const places = basePlaces();
   const activeId = loadActivePlaceId() || places[0].id;
   const place = places.find((p) => p.id === activeId) || places[0];
@@ -68,7 +68,6 @@ export function buildFloorsForAgents(agents) {
     f.openings = f.openings || [];
     f.dividers = f.dividers || [];
     f.background = f.background || null;
-    f.backgroundOpacity = f.backgroundOpacity;
   });
   return floors;
 }

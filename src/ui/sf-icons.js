@@ -3,7 +3,7 @@ const SLDS_SPRITE = '/docs/salesforce-lightning-design-system-icons/standard-spr
 const SLDS_CUSTOM_SPRITE = '/docs/salesforce-lightning-design-system-icons/custom-sprite/svg/symbols.svg';
 
 /** Workspace nav tab icons (standard:… and custom:… SLDS sprite refs). */
-export const WORKSPACE_TAB_ICONS = {
+const WORKSPACE_TAB_ICONS = {
   operations: { ref: 'custom:custom107', bg: '#5867E8' },
   'floor-editor': { ref: 'custom:custom24', bg: '#939393' },
   agents: { ref: 'custom:custom103', bg: '#34BECD' },
@@ -13,7 +13,7 @@ export const WORKSPACE_TAB_ICONS = {
 };
 
 /** @type {Record<string, string>} Symbol id in standard-sprite (same as SLDS icon name). */
-export const SF_ICON_SYMBOLS = {
+const SF_ICON_SYMBOLS = {
   queue: 'queue',
   skill: 'skill',
   user: 'user',
@@ -26,7 +26,7 @@ export const SF_ICON_SYMBOLS = {
 };
 
 /** Background colors aligned with Salesforce Lightning object icons. */
-export const SF_ICON_COLORS = {
+const SF_ICON_COLORS = {
   queue: '#5867E8',
   skill: '#F88962',
   user: '#34BECD',
@@ -39,7 +39,7 @@ export const SF_ICON_COLORS = {
 };
 
 /** Omni / work channel keys → SLDS standard icon name. */
-export const CHANNEL_SF_ICON = {
+const CHANNEL_SF_ICON = {
   veu: 'voice',
   chat: 'chat',
   email: 'email',
@@ -48,7 +48,7 @@ export const CHANNEL_SF_ICON = {
 };
 
 /** @param {string} name */
-export function sfIconSymbolId(name) {
+function sfIconSymbolId(name) {
   return SF_ICON_SYMBOLS[name] ?? SF_ICON_SYMBOLS.case;
 }
 
@@ -76,7 +76,7 @@ export function colorFromString(str) {
  * @param {string} ref SLDS icon ref, e.g. `standard:skill` or `custom:custom107`
  * @returns {{ sprite: string, symbol: string }}
  */
-export function parseSldsIconRef(ref) {
+function parseSldsIconRef(ref) {
   const sep = ref.indexOf(':');
   if (sep === -1) return { sprite: SLDS_SPRITE, symbol: ref };
   const category = ref.slice(0, sep);
@@ -91,7 +91,7 @@ export function parseSldsIconRef(ref) {
  * @param {string} ref
  * @param {string} [className]
  */
-export function sldsIconRefHtml(ref, className = 'sf-icon') {
+function sldsIconRefHtml(ref, className = 'sf-icon') {
   const { sprite, symbol } = parseSldsIconRef(ref);
   return `<svg class="${className}" aria-hidden="true"><use href="${sprite}#${symbol}"></use></svg>`;
 }
@@ -101,7 +101,7 @@ export function sldsIconRefHtml(ref, className = 'sf-icon') {
  * @param {string} ref
  * @param {{ size?: number, bg?: string, className?: string }} [opts]
  */
-export function sldsIconRefTileHtml(ref, { size = 30, bg, className = 'sf-icon-tile' } = {}) {
+function sldsIconRefTileHtml(ref, { size = 30, bg, className = 'sf-icon-tile' } = {}) {
   const { symbol } = parseSldsIconRef(ref);
   const color = bg ?? sfIconColor(symbol);
   return `<span class="${className}" style="width:${size}px;height:${size}px;background:${color}">${sldsIconRefHtml(ref)}</span>`;
@@ -123,7 +123,7 @@ export function workspaceTabIconHtml(viewType) {
  * @param {string} name
  * @param {string} [className]
  */
-export function sfIconHtml(name, className = 'sf-icon') {
+function sfIconHtml(name, className = 'sf-icon') {
   const id = sfIconSymbolId(name);
   return `<svg class="${className}" aria-hidden="true"><use href="${SLDS_SPRITE}#${id}"></use></svg>`;
 }

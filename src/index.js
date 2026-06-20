@@ -49,7 +49,7 @@ createServer(async (req, res) => {
 
   if (pathname === "/api/config") {
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify(getPublicRuntimeConfig()));
+    res.end(JSON.stringify({ ...getPublicRuntimeConfig(), devReload: devMode }));
     return;
   }
 
@@ -59,6 +59,7 @@ createServer(async (req, res) => {
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
     });
+    res.write(": connected\n\n");
     devReloadClients.add(res);
     req.on("close", () => devReloadClients.delete(res));
     return;
@@ -97,7 +98,7 @@ createServer(async (req, res) => {
   }
 }).listen(port, () => {
   console.log(`panorama: http://localhost:${port}${devMode ? " (dev reload on)" : ""}`);
-  console.log(`panorama: Salesforce OAuth callback → http://localhost:${port}/oauth/callback`);
+  console.log(`panorama: ECA redirect URI path /oauth/callback (configure in Salesforce, do not open manually)`);
 
   if (devMode) {
     // Watch project root for index.html (editors often save via rename).

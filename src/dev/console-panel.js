@@ -18,7 +18,6 @@ function createPanel() {
   let bodyEl = null;
   let searchEl = null;
   let previewEl = null;
-  let unsubscribe = null;
   let minimized = false;
   let transitioning = false;
   const activeLevels = new Set(LEVELS);
@@ -185,7 +184,7 @@ function createPanel() {
 
     attachResize(root.querySelector('.dev-console-resize'), savedHeight);
 
-    unsubscribe = devConsole.subscribe((e) => {
+    devConsole.subscribe((e) => {
       if (e.type === 'clear') {
         updatePreview();
         rerender();

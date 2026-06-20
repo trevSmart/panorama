@@ -47,7 +47,7 @@ export function syncCustomSelect(selectEl) {
  * @param {HTMLSelectElement} selectEl
  * @returns {CustomSelectInstance}
  */
-export function enhanceSelect(selectEl) {
+function enhanceSelect(selectEl) {
   const existing = selectEl.closest('.custom-select')?._customSelect;
   if (existing) return existing;
 
@@ -178,10 +178,6 @@ export function enhanceSelect(selectEl) {
 
   inst.syncFromNative();
   return inst;
-}
-
-export function isAnyCustomSelectOpen() {
-  return openSelects.size > 0;
 }
 
 /**

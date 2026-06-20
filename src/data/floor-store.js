@@ -128,14 +128,6 @@ function loadRoomDefinition() {
   return sanitizeRoomDefinition(JSON.parse(raw));
 }
 
-/** @returns {{ v: number, dir: number, activePlaceId: string, places: Array<{ id: string, name: string, floors: Array<{ name: string, cells: number[][], seats: number[][], openings: Array<{ c: number, r: number, edge: string, kind: string }> }> }> }|null} */
-export function loadCustomRoom() {
-  try {
-    return loadRoomDefinition();
-  } catch {
-    return null;
-  }
-}
 
 /** @returns {Array<{ id: string, name: string, floors: Array<{ name: string, cells: number[][], seats: number[][], openings: Array<{ c: number, r: number, edge: string, kind: string }> }> }>|null} */
 export function loadCustomPlaces() {
@@ -238,14 +230,3 @@ export function saveCustomRoomDir(dir, fallbackFloors) {
   return null;
 }
 
-export function clearCustomFloors() {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
-export function hasCustomFloors() {
-  return loadCustomFloors() != null;
-}

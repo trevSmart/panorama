@@ -2,7 +2,7 @@ const STORAGE_KEY = 'panorama.preferences.v1';
 const CONSOLE_SHOW_KEY = 'panorama.console.show';
 
 /** @type {Record<string, string | boolean>} */
-export const SETTINGS_DEFAULTS = {
+const SETTINGS_DEFAULTS = {
   settingsRefreshInterval: '30',
   settingsAutoRefresh: true,
   settingsMaxWait: '180',

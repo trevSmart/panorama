@@ -277,6 +277,12 @@ Panorama mapping: `[~]` Overview KPIs in prototype cover a subset (wait, backlog
 
 - [ ] **Filter persistence** — per view / session (native persists in Lightning)
 
+### 6.1b Salesforce object icon colors
+
+- [ ] **Match SLDS object icon background colors** — the colored tile behind each Salesforce object icon should use the same background color Salesforce assigns natively to that object/icon (the official SLDS standard color), instead of approximate or hardcoded values
+  - Likely: align `sfIconColor` / icon background map in [src/ui/sf-icons.js](../src/ui/sf-icons.js) with official SLDS standard-sprite colors
+  - Affects: workspace nav tab tiles and object icon tiles (`sfIconTileHtml`, `sldsIconRefTileHtml`)
+
 ### 6.2 Real-time updates
 
 - [ ] **Live refresh** — status, assignments, queue depth update within seconds without full page reload

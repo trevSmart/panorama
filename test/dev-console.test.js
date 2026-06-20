@@ -142,7 +142,6 @@ test('uninstall with wrong target leaves that target unchanged and original targ
   assert.equal(dc.getEntries().length, 1, 'console A must still capture after wrong-target uninstall');
   // Correct uninstall must work
   dc.uninstall(fakeConsoleA);
-  const wrappedLog = fakeConsoleA.log;
   fakeConsoleA.log('after real uninstall');
   assert.equal(dc.getEntries().length, 1, 'console A must no longer capture after correct uninstall');
 });
